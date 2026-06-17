@@ -52,6 +52,6 @@ public sealed class DiagnosticViewModel : ObservableObject
             var line = $"[{e.Timestamp:HH:mm:ss}] {e.Level,-7} {e.Message}";
             return e.Detail is { Length: > 0 } d ? line + "\n           " + d : line;
         });
-        System.Windows.Clipboard.SetText(string.Join("\n", lines));
+        System.Windows.Forms.Clipboard.SetText(string.Join("\n", lines));
     }
 }

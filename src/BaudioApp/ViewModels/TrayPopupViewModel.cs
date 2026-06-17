@@ -111,7 +111,7 @@ public sealed class TrayPopupViewModel : ObservableObject
 
     private void OnPeakChanged(float peak)
     {
-        App.Current.Dispatcher.InvokeAsync(() =>
+        Ui.Post(() =>
         {
             AudioPeak = peak;
             if (ConnectedDevice is not null)
@@ -158,7 +158,7 @@ public sealed class TrayPopupViewModel : ObservableObject
 
     private void OnAudioStateChanged(DeviceConnectionState state, string? error)
     {
-        App.Current.Dispatcher.InvokeAsync(() =>
+        Ui.Post(() =>
         {
             OverallState = state;
             ErrorMessage = error;

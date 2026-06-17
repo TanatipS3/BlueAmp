@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using BaudioApp.Helpers;
 using BaudioApp.Models;
 using Windows.Devices.Enumeration;
 using Windows.Media.Audio;
@@ -50,14 +51,14 @@ public class BluetoothService : IDisposable
             Name = info.Name,
             SignalStrength = ParseSignalStrength(info.Properties)
         };
-        App.Current.Dispatcher.Invoke(() => Devices.Add(device));
+        Ui.Send(() => Devices.Add(device));
         DeviceAdded?.Invoke(device);
         _diag.Info($"Found: {info.Name}", tags: ["System"]);
     }
 
     private void OnDeviceRemoved(DeviceWatcher _, DeviceInformationUpdate update)
     {
-        App.Current.Dispatcher.Invoke(() =>
+        Ui.Send(() =>
         {
             var existing = Devices.FirstOrDefault(d => d.Id == update.Id);
             if (existing is not null) Devices.Remove(existing);
@@ -71,7 +72,7 @@ public class BluetoothService : IDisposable
         var sig = ParseSignalStrength(update.Properties);
         if (sig is null) return;
 
-        App.Current.Dispatcher.Invoke(() =>
+        Ui.Send(() =>
         {
             var device = Devices.FirstOrDefault(d => d.Id == update.Id);
             if (device is not null) device.SignalStrength = sig;
