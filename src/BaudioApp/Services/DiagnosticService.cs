@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using BaudioApp.Helpers;
 using BaudioApp.Models;
 
 namespace BaudioApp.Services;
@@ -23,7 +24,7 @@ public class DiagnosticService
         var entry = new DiagnosticEntry { Level = level, Message = message, Detail = detail, Tags = tags };
         // InvokeAsync (non-blocking) so background threads — the BT watcher, audio
         // callbacks — never stall waiting on the UI thread just to log.
-        App.Current.Dispatcher.InvokeAsync(() =>
+        Ui.Post(() =>
         {
             Entries.Add(entry);
             while (Entries.Count > MaxEntries)
@@ -43,5 +44,5 @@ public class DiagnosticService
     public void Error(string message, string? detail = null, params string[] tags) =>
         Log(DiagnosticLevel.Error, message, detail, tags);
 
-    public void Clear() => App.Current.Dispatcher.Invoke(Entries.Clear);
+    public void Clear() => Ui.Send(Entries.Clear);
 }
