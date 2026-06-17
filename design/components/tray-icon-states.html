@@ -1,0 +1,251 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BlueAmp — Tray Icon States</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    gap: 48px;
+    padding: 40px;
+  }
+
+  .icon-case {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .icon-label {
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  /* Sizes shown per state */
+  .sizes {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .size-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .size-tag {
+    font-size: 9px;
+    color: #444;
+    width: 24px;
+    text-align: right;
+  }
+
+  /* Icon SVG wrapper */
+  .icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Idle icon */
+  .icon-idle path, .icon-idle line { stroke: #555; }
+
+  /* Connected icon */
+  .icon-connected path, .icon-connected line { stroke: #00C853; }
+  .icon-connected { filter: drop-shadow(0 0 4px #00C853aa); }
+
+  /* Error icon */
+  .icon-error path, .icon-error line { stroke: #FF5252; }
+  .icon-error { filter: drop-shadow(0 0 4px #FF5252aa); }
+
+  /* Tray bar simulation */
+  .tray-bar {
+    background: #1e1e1e;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .tray-bar-label {
+    font-size: 10px;
+    color: #444;
+    margin-right: 4px;
+  }
+  .tray-sep {
+    width: 1px;
+    height: 14px;
+    background: rgba(255,255,255,0.08);
+    margin: 0 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- IDLE -->
+<div class="icon-case">
+  <div class="icon-label">Idle</div>
+  <div class="sizes">
+    <div class="size-row">
+      <span class="size-tag">32</span>
+      <div class="icon-wrap">
+        <svg class="icon-idle" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="size-row">
+      <span class="size-tag">20</span>
+      <div class="icon-wrap">
+        <svg class="icon-idle" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="size-row">
+      <span class="size-tag">16</span>
+      <div class="icon-wrap">
+        <svg class="icon-idle" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div style="font-size:10px; color:#3a3a3a; text-align:center; line-height:1.6;">No device<br>connected</div>
+</div>
+
+<!-- CONNECTED -->
+<div class="icon-case">
+  <div class="icon-label">Connected</div>
+  <div class="sizes">
+    <div class="size-row">
+      <span class="size-tag">32</span>
+      <div class="icon-wrap">
+        <svg class="icon-connected" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="size-row">
+      <span class="size-tag">20</span>
+      <div class="icon-wrap">
+        <svg class="icon-connected" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="size-row">
+      <span class="size-tag">16</span>
+      <div class="icon-wrap">
+        <svg class="icon-connected" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div style="font-size:10px; color:#3a3a3a; text-align:center; line-height:1.6;">Audio<br>streaming</div>
+</div>
+
+<!-- ERROR -->
+<div class="icon-case">
+  <div class="icon-label">Error</div>
+  <div class="sizes">
+    <div class="size-row">
+      <span class="size-tag">32</span>
+      <div class="icon-wrap">
+        <svg class="icon-error" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="size-row">
+      <span class="size-tag">20</span>
+      <div class="icon-wrap">
+        <svg class="icon-error" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="size-row">
+      <span class="size-tag">16</span>
+      <div class="icon-wrap">
+        <svg class="icon-error" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2">
+          <path d="M12 2l3.5 3.5L12 9V2z"/>
+          <path d="M12 15l3.5 3.5L12 22v-7z"/>
+          <path d="M8.5 5.5L12 9l-3.5 3.5"/>
+          <path d="M8.5 18.5L12 15l-3.5-3.5"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div style="font-size:10px; color:#3a3a3a; text-align:center; line-height:1.6;">Connection<br>failed</div>
+</div>
+
+<!-- Tray bar in context -->
+<div class="icon-case">
+  <div class="icon-label">In Tray Context</div>
+  <div class="tray-bar">
+    <span class="tray-bar-label">System tray →</span>
+    <div class="tray-sep"></div>
+    <!-- idle -->
+    <svg class="icon-idle" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2">
+      <path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/>
+      <path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/>
+    </svg>
+    <div class="tray-sep"></div>
+    <!-- connected -->
+    <svg class="icon-connected" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2">
+      <path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/>
+      <path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/>
+    </svg>
+    <div class="tray-sep"></div>
+    <!-- error -->
+    <svg class="icon-error" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2.2">
+      <path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/>
+      <path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/>
+    </svg>
+  </div>
+  <div style="font-size:10px; color:#3a3a3a; text-align:center; line-height:1.6;">idle · connected · error</div>
+</div>
+
+</body>
+</html>

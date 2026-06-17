@@ -1,0 +1,354 @@
+<!-- @dsCard group="Diagnostics" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlueAmp — Diagnostic Panel</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --accent:         #00C853;
+    --error:          #FF5252;
+    --warn:           #FFB300;
+    --bg:             #1a1a1a;
+    --surface:        #232323;
+    --surface-2:      #2c2c2c;
+    --border:         rgba(255,255,255,0.07);
+    --text-primary:   #F0F0F0;
+    --text-secondary: #888;
+    --text-muted:     #4a4a4a;
+    --radius:         8px;
+    --radius-sm:      5px;
+  }
+
+  body {
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    padding: 40px;
+  }
+
+  /* ── Window shell ── */
+  .window {
+    width: 580px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Title bar ── */
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+
+  .titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .titlebar-icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0.5;
+  }
+
+  .titlebar-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.3px;
+  }
+
+  .titlebar-close {
+    width: 28px;
+    height: 20px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, color 0.1s;
+  }
+  .titlebar-close:hover { background: #FF5252; color: #fff; }
+
+  /* ── Filter bar ── */
+  .filter-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+  }
+
+  .filter-chip {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.1s;
+  }
+  .filter-chip:hover  { background: rgba(255,255,255,0.05); }
+  .filter-chip.active { background: rgba(0,200,83,0.12); border-color: rgba(0,200,83,0.3); color: var(--accent); }
+
+  .filter-spacer { flex: 1; }
+
+  .action-btn {
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.1s;
+  }
+  .action-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+
+  /* ── Log entries ── */
+  .log-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+    max-height: 400px;
+  }
+
+  .log-container::-webkit-scrollbar { width: 4px; }
+  .log-container::-webkit-scrollbar-track { background: transparent; }
+  .log-container::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+  .log-entry {
+    display: flex;
+    gap: 12px;
+    padding: 7px 14px;
+    align-items: flex-start;
+    transition: background 0.08s;
+  }
+  .log-entry:hover { background: rgba(255,255,255,0.03); }
+
+  .log-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    margin-top: 1px;
+    width: 54px;
+    font-family: 'Segoe UI Variable', monospace;
+  }
+
+  .log-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+  .log-dot.info    { background: #444; }
+  .log-dot.success { background: var(--accent); }
+  .log-dot.error   { background: var(--error); }
+  .log-dot.warn    { background: var(--warn); }
+
+  .log-body { flex: 1; min-width: 0; }
+
+  .log-message {
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.4;
+    font-weight: 450;
+  }
+  .log-message.error { color: #FF7070; }
+  .log-message.warn  { color: #FFB300; }
+
+  .log-detail {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    line-height: 1.5;
+  }
+
+  .log-tag {
+    display: inline-block;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    margin-left: 6px;
+    vertical-align: middle;
+    text-transform: uppercase;
+  }
+  .log-tag.a2dp    { background: rgba(0,200,83,0.15); color: var(--accent); }
+  .log-tag.system  { background: rgba(255,255,255,0.07); color: #666; }
+  .log-tag.error   { background: rgba(255,82,82,0.15); color: var(--error); }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 14px;
+  }
+
+  /* ── Footer ── */
+  .window-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .footer-info { font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="window">
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <svg class="titlebar-icon" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      <span class="titlebar-title">Diagnostics — BlueAmp</span>
+    </div>
+    <button class="titlebar-close">✕</button>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <button class="filter-chip active">All</button>
+    <button class="filter-chip">Connection</button>
+    <button class="filter-chip">Audio</button>
+    <button class="filter-chip">Errors</button>
+    <div class="filter-spacer"></div>
+    <button class="action-btn">Clear</button>
+    <button class="action-btn">Export</button>
+  </div>
+
+  <!-- Log entries -->
+  <div class="log-container">
+
+    <div class="log-entry">
+      <span class="log-time">14:31:48</span>
+      <div class="log-dot success"></div>
+      <div class="log-body">
+        <div class="log-message">Reconnected to Samsung Galaxy S24 <span class="log-tag a2dp">A2DP</span></div>
+        <div class="log-detail">Auto-reconnect triggered after 23s gap. Connection restored successfully.</div>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <span class="log-time">14:31:25</span>
+      <div class="log-dot warn"></div>
+      <div class="log-body">
+        <div class="log-message warn">Reconnecting… <span class="log-tag system">System</span></div>
+        <div class="log-detail">Device signal lost. Waiting for device to become available.</div>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <span class="log-time">14:31:22</span>
+      <div class="log-dot error"></div>
+      <div class="log-body">
+        <div class="log-message error">Connection dropped <span class="log-tag error">Error</span></div>
+        <div class="log-detail">Audio stream stopped unexpectedly. Likely cause: phone Bluetooth turned off or moved out of range.</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="log-entry">
+      <span class="log-time">14:23:04</span>
+      <div class="log-dot success"></div>
+      <div class="log-body">
+        <div class="log-message">Audio stream started <span class="log-tag a2dp">A2DP</span></div>
+        <div class="log-detail">Codec: SBC · Sample rate: 44.1 kHz · Channels: Stereo</div>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <span class="log-time">14:23:01</span>
+      <div class="log-dot success"></div>
+      <div class="log-body">
+        <div class="log-message">Connected to Samsung Galaxy S24 <span class="log-tag a2dp">A2DP</span></div>
+        <div class="log-detail">AudioPlaybackConnection opened. Device: 78:2B:46:xx:xx:xx</div>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <span class="log-time">14:22:59</span>
+      <div class="log-dot info"></div>
+      <div class="log-body">
+        <div class="log-message">Connecting… <span class="log-tag system">System</span></div>
+        <div class="log-detail">Initiating AudioPlaybackConnection for Samsung Galaxy S24</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="log-entry">
+      <span class="log-time">14:18:33</span>
+      <div class="log-dot error"></div>
+      <div class="log-body">
+        <div class="log-message error">Connection attempt failed <span class="log-tag error">Error</span></div>
+        <div class="log-detail">Result: RequestTimedOut · Your phone took too long to respond. Make sure Bluetooth is on and the device is nearby.</div>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <span class="log-time">14:18:30</span>
+      <div class="log-dot info"></div>
+      <div class="log-body">
+        <div class="log-message">Connecting… <span class="log-tag system">System</span></div>
+        <div class="log-detail">Initiating AudioPlaybackConnection for Samsung Galaxy S24</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="log-entry">
+      <span class="log-time">14:01:05</span>
+      <div class="log-dot info"></div>
+      <div class="log-body">
+        <div class="log-message">BlueAmp started <span class="log-tag system">System</span></div>
+        <div class="log-detail">Version 1.0.0 · Windows 11 Build 22631 · Bluetooth adapter: Intel AX211</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="window-footer">
+    <span class="footer-info">9 events · Session started 14:01</span>
+    <span class="footer-info">Live</span>
+  </div>
+</div>
+
+</body>
+</html>

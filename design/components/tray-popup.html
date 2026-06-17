@@ -1,0 +1,397 @@
+<!-- @dsCard group="Core" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlueAmp — Tray Popup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --accent:       #00C853;
+    --accent-dim:   #00a844;
+    --error:        #FF5252;
+    --warn:         #FFB300;
+    --bg:           #1c1c1c;
+    --surface:      #272727;
+    --surface-2:    #303030;
+    --border:       rgba(255,255,255,0.08);
+    --text-primary: #F0F0F0;
+    --text-secondary: #888;
+    --text-muted:   #555;
+    --radius:       8px;
+    --radius-sm:    5px;
+  }
+
+  body {
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    gap: 40px;
+    flex-wrap: wrap;
+    padding: 40px;
+  }
+
+  .label {
+    color: #555;
+    font-size: 11px;
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* ── Popup shell ── */
+  .popup {
+    width: 320px;
+    background: rgba(28, 28, 28, 0.96);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.04);
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .status-dot.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .status-dot.error     { background: var(--error);  box-shadow: 0 0 6px var(--error); }
+
+  /* ── Section label ── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 12px 16px 6px;
+  }
+
+  /* ── Device list ── */
+  .devices { padding: 0 8px 4px; }
+
+  .device-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .device-row:hover { background: rgba(255,255,255,0.05); }
+
+  .device-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .device-icon svg { width: 16px; height: 16px; }
+
+  .device-info { flex: 1; min-width: 0; }
+  .device-name {
+    font-size: 13px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 450;
+  }
+  .device-status {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+  }
+  .device-status.connected { color: var(--accent); }
+
+  .connect-btn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-family: inherit;
+    letter-spacing: 0.2px;
+    transition: opacity 0.1s;
+  }
+  .connect-btn:hover { opacity: 0.85; }
+  .connect-btn.connect    { background: var(--accent); color: #000; }
+  .connect-btn.disconnect { background: var(--surface-2); color: var(--text-secondary); }
+  .connect-btn.connecting {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    cursor: default;
+  }
+
+  /* ── Meter ── */
+  .meter-section {
+    margin: 4px 16px 0;
+    padding: 10px 12px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .meter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 7px;
+  }
+  .meter-label { font-size: 11px; color: var(--text-secondary); }
+  .meter-state { font-size: 11px; font-weight: 600; }
+  .meter-state.active  { color: var(--accent); }
+  .meter-state.silent  { color: var(--text-muted); }
+
+  .meter-bars {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 20px;
+  }
+  .bar {
+    flex: 1;
+    border-radius: 2px;
+    background: var(--surface-2);
+  }
+  .bar.active { background: var(--accent); }
+  .bar.mid    { background: var(--accent-dim); opacity: 0.6; }
+
+  /* ── Last event ── */
+  .last-event {
+    padding: 8px 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .last-event span { color: var(--text-secondary); }
+
+  /* ── Footer buttons ── */
+  .footer {
+    display: flex;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .footer-btn {
+    flex: 1;
+    padding: 10px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: background 0.1s, color 0.1s;
+    font-weight: 450;
+  }
+  .footer-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+  .footer-btn + .footer-btn { border-left: 1px solid var(--border); }
+  .footer-btn svg { width: 13px; height: 13px; opacity: 0.7; }
+</style>
+</head>
+<body>
+
+<!-- STATE 1: Connected + Audio Active -->
+<div>
+  <div class="label">Connected · Audio Active</div>
+  <div class="popup">
+    <div class="header">
+      <span class="app-name">BlueAmp</span>
+      <div class="status-dot connected"></div>
+    </div>
+
+    <div class="section-label">Devices</div>
+    <div class="devices">
+      <div class="device-row">
+        <div class="device-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00C853" stroke-width="2"><path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/><path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/></svg>
+        </div>
+        <div class="device-info">
+          <div class="device-name">Samsung Galaxy S24</div>
+          <div class="device-status connected">Connected · A2DP</div>
+        </div>
+        <button class="connect-btn disconnect">Disconnect</button>
+      </div>
+      <div class="device-row">
+        <div class="device-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/><path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/></svg>
+        </div>
+        <div class="device-info">
+          <div class="device-name">AirPods Pro</div>
+          <div class="device-status">Available</div>
+        </div>
+        <button class="connect-btn connect">Connect</button>
+      </div>
+    </div>
+
+    <div style="padding: 4px 8px 8px;">
+      <div class="meter-section">
+        <div class="meter-header">
+          <span class="meter-label">Audio Stream</span>
+          <span class="meter-state active">Active</span>
+        </div>
+        <div class="meter-bars">
+          <div class="bar active" style="height:8px"></div>
+          <div class="bar active" style="height:13px"></div>
+          <div class="bar active" style="height:18px"></div>
+          <div class="bar active" style="height:20px"></div>
+          <div class="bar active" style="height:15px"></div>
+          <div class="bar mid"    style="height:10px"></div>
+          <div class="bar mid"    style="height:6px"></div>
+          <div class="bar"        style="height:4px"></div>
+          <div class="bar"        style="height:4px"></div>
+          <div class="bar"        style="height:4px"></div>
+          <div class="bar"        style="height:4px"></div>
+          <div class="bar"        style="height:4px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="last-event">● <span>Connected · 4 min ago</span></div>
+
+    <div class="footer">
+      <button class="footer-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Diagnostics
+      </button>
+      <button class="footer-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+        Settings
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- STATE 2: Idle -->
+<div>
+  <div class="label">Idle · No Device Connected</div>
+  <div class="popup">
+    <div class="header">
+      <span class="app-name">BlueAmp</span>
+      <div class="status-dot"></div>
+    </div>
+
+    <div class="section-label">Devices</div>
+    <div class="devices">
+      <div class="device-row">
+        <div class="device-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/><path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/></svg>
+        </div>
+        <div class="device-info">
+          <div class="device-name">Samsung Galaxy S24</div>
+          <div class="device-status">Available</div>
+        </div>
+        <button class="connect-btn connect">Connect</button>
+      </div>
+      <div class="device-row">
+        <div class="device-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/><path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/></svg>
+        </div>
+        <div class="device-info">
+          <div class="device-name">AirPods Pro</div>
+          <div class="device-status">Available</div>
+        </div>
+        <button class="connect-btn connect">Connect</button>
+      </div>
+    </div>
+
+    <div class="last-event" style="margin-top: 8px;">● <span>No device connected</span></div>
+
+    <div class="footer">
+      <button class="footer-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Diagnostics
+      </button>
+      <button class="footer-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+        Settings
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- STATE 3: Error -->
+<div>
+  <div class="label">Error State</div>
+  <div class="popup">
+    <div class="header">
+      <span class="app-name">BlueAmp</span>
+      <div class="status-dot error"></div>
+    </div>
+
+    <div class="section-label">Devices</div>
+    <div class="devices">
+      <div class="device-row">
+        <div class="device-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#FF5252" stroke-width="2"><path d="M12 2l3.5 3.5L12 9V2z"/><path d="M12 15l3.5 3.5L12 22v-7z"/><path d="M8.5 5.5L12 9l-3.5 3.5"/><path d="M8.5 18.5L12 15l-3.5-3.5"/></svg>
+        </div>
+        <div class="device-info">
+          <div class="device-name">Samsung Galaxy S24</div>
+          <div class="device-status" style="color:#FF5252">Connection failed</div>
+        </div>
+        <button class="connect-btn connect">Retry</button>
+      </div>
+    </div>
+
+    <div style="margin: 4px 8px 8px;">
+      <div style="background:#FF525215; border:1px solid #FF525230; border-radius:5px; padding:10px 12px;">
+        <div style="font-size:12px; color:#FF7070; font-weight:600; margin-bottom:3px;">Connection timed out</div>
+        <div style="font-size:11px; color:#888; line-height:1.5;">Make sure Bluetooth is on and your phone is nearby. Check that no other device is already connected to it.</div>
+      </div>
+    </div>
+
+    <div class="last-event">● <span>Failed · 12 sec ago</span></div>
+
+    <div class="footer">
+      <button class="footer-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Diagnostics
+      </button>
+      <button class="footer-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+        Settings
+      </button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\tray-idle.ico</ApplicationIcon>
+
+    <!-- Lightweight footprint: workstation, non-concurrent GC keeps a mostly-idle
+         tray app's memory low instead of reserving heap headroom for throughput. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.2.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\tray-idle.ico"      CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="Assets\tray-connected.ico" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="Assets\tray-error.ico"     CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+</Project>

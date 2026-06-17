@@ -1,0 +1,213 @@
+<!-- @dsCard group="Settings" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlueAmp — Settings</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --accent:         #00C853;
+    --bg:             #1a1a1a;
+    --surface:        #232323;
+    --surface-2:      #2c2c2c;
+    --border:         rgba(255,255,255,0.07);
+    --text-primary:   #F0F0F0;
+    --text-secondary: #888;
+    --text-muted:     #4a4a4a;
+    --radius:         8px;
+    --radius-sm:      5px;
+  }
+
+  body {
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    padding: 40px;
+  }
+
+  .window {
+    width: 460px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    overflow: hidden;
+  }
+
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .titlebar-left { display: flex; align-items: center; gap: 8px; }
+  .titlebar-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .titlebar-close {
+    width: 28px; height: 20px; background: none; border: none;
+    color: var(--text-muted); font-size: 14px; cursor: pointer;
+    border-radius: 3px; display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s, color 0.1s;
+  }
+  .titlebar-close:hover { background: #FF5252; color: #fff; }
+
+  .content { padding: 20px; display: flex; flex-direction: column; gap: 6px; }
+
+  /* Section */
+  .section-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  /* Setting row */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 14px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    gap: 16px;
+  }
+  .setting-row + .setting-row { margin-top: 2px; }
+
+  .setting-info { flex: 1; }
+  .setting-name { font-size: 13px; color: var(--text-primary); font-weight: 450; }
+  .setting-desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Toggle */
+  .toggle {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .toggle.on  { background: var(--accent); }
+  .toggle.off { background: #3a3a3a; }
+
+  .toggle-knob {
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    position: absolute;
+    top: 3px;
+    transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+  .toggle.on  .toggle-knob { left: 19px; }
+  .toggle.off .toggle-knob { left: 3px; }
+
+  /* Footer */
+  .window-footer {
+    border-top: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .version-info { font-size: 11px; color: var(--text-muted); }
+  .save-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 18px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.1s;
+  }
+  .save-btn:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<div class="window">
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" style="opacity:0.5">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+      </svg>
+      <span class="titlebar-title">Settings — BlueAmp</span>
+    </div>
+    <button class="titlebar-close">✕</button>
+  </div>
+
+  <div class="content">
+
+    <div class="section-title">General</div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">Launch at startup</div>
+        <div class="setting-desc">Start BlueAmp automatically when Windows starts</div>
+      </div>
+      <div class="toggle on"><div class="toggle-knob"></div></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">Remember last device</div>
+        <div class="setting-desc">Auto-connect to the last used Bluetooth device on launch</div>
+      </div>
+      <div class="toggle on"><div class="toggle-knob"></div></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">Auto-reconnect on drop</div>
+        <div class="setting-desc">Retry connection automatically if the audio stream drops</div>
+      </div>
+      <div class="toggle on"><div class="toggle-knob"></div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:16px;">Diagnostics</div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">Keep log history</div>
+        <div class="setting-desc">Retain diagnostic log across sessions (saved to AppData)</div>
+      </div>
+      <div class="toggle off"><div class="toggle-knob"></div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:16px;">Presence Detection</div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">Lock PC when phone leaves</div>
+        <div class="setting-desc">Use Bluetooth signal strength to detect when you've walked away. May increase CPU usage.</div>
+      </div>
+      <div class="toggle off"><div class="toggle-knob"></div></div>
+    </div>
+
+  </div>
+
+  <div class="window-footer">
+    <span class="version-info">BlueAmp v1.0.0 · Windows 10 2004+</span>
+    <button class="save-btn">Save</button>
+  </div>
+</div>
+
+</body>
+</html>
