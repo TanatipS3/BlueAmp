@@ -90,7 +90,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (e.Button != MouseButtons.Left) return;
         if (_popup is { Visible: true }) { _popup.Hide(); return; }
-        _popup ??= new PopupForm(_vm);
+        _popup ??= new PopupForm(_vm, _diag);
         _popup.ShowNearTray();
     }
 

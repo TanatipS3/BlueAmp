@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using BaudioApp.Models;
+using BaudioApp.Services;
 using BaudioApp.ViewModels;
 
 namespace BaudioApp.Views;
@@ -22,15 +23,17 @@ internal sealed class PopupForm : Form
     private const int WaveSlots = 24;
 
     private readonly TrayPopupViewModel _vm;
+    private readonly DiagnosticService _diag;
     private readonly System.Windows.Forms.Timer _anim;
-    private readonly List<(Rectangle bounds, Action onClick)> _hotspots = new();
+    private readonly List<(Rectangle bounds, string label, Action onClick)> _hotspots = new();
 
     private int _spinAngle;
     private double _blinkPhase;
 
-    public PopupForm(TrayPopupViewModel vm)
+    public PopupForm(TrayPopupViewModel vm, DiagnosticService diag)
     {
         _vm = vm;
+        _diag = diag;
 
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar   = false;
@@ -286,7 +289,7 @@ internal sealed class PopupForm : Form
         else Theme.DrawRoundedBorder(g, rect, 4, Theme.FromHex("#22FFFFFF"));
         TextRenderer.DrawText(g, text, font, rect, fg,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        _hotspots.Add((rect, onClick));
+        _hotspots.Add((rect, text, onClick));
         return w;
     }
 
@@ -405,7 +408,7 @@ internal sealed class PopupForm : Form
         var sz = TextRenderer.MeasureText(text, font);
         var rect = new Rectangle(x, y, sz.Width, 16);
         TextRenderer.DrawText(g, text, font, rect, Theme.TextMuted, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
-        _hotspots.Add((rect, onClick));
+        _hotspots.Add((rect, text, onClick));
         return sz.Width;
     }
 
@@ -414,8 +417,14 @@ internal sealed class PopupForm : Form
     protected override void OnMouseClick(MouseEventArgs e)
     {
         base.OnMouseClick(e);
-        foreach (var (bounds, onClick) in _hotspots)
-            if (bounds.Contains(e.Location)) { onClick(); return; }
+        foreach (var (bounds, label, onClick) in _hotspots)
+            if (bounds.Contains(e.Location))
+            {
+                _diag.Info($"Popup: clicked '{label}'", tags: ["UI"]);
+                onClick();
+                return;
+            }
+        _diag.Info($"Popup: click at {e.Location} hit no target ({_hotspots.Count} targets)", tags: ["UI"]);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
