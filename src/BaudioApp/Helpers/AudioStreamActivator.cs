@@ -1,4 +1,4 @@
-using NAudio.CoreAudioApi;
+using BaudioApp.Interop;
 
 namespace BaudioApp.Helpers;
 
@@ -10,42 +10,31 @@ internal static class AudioStreamActivator
     public static async Task ActivateAsync(string deviceFriendlyName, CancellationToken ct = default)
     {
         // The audio endpoint may take a moment to register after OpenAsync() completes
-        MMDevice? endpoint = null;
+        AudioEndpoint? endpoint = null;
         for (int i = 0; i < 8 && !ct.IsCancellationRequested; i++)
         {
             await Task.Delay(400, ct).ConfigureAwait(false);
-            endpoint = FindEndpoint(deviceFriendlyName);
+            endpoint = AudioDevices.FindActiveRenderByName(deviceFriendlyName);
             if (endpoint is not null) break;
         }
 
-        if (endpoint is null || ct.IsCancellationRequested) return;
+        if (endpoint is null || ct.IsCancellationRequested) { endpoint?.Dispose(); return; }
 
         try
         {
-            var vol = endpoint.AudioEndpointVolume.MasterVolumeLevelScalar;
+            if (!endpoint.TryGetVolumeScalar(out float vol)) return;
 
             // Unmute if muted (can happen on first-ever connection to a device)
-            if (endpoint.AudioEndpointVolume.Mute)
-                endpoint.AudioEndpointVolume.Mute = false;
+            if (endpoint.IsMuted)
+                endpoint.SetMute(false);
 
             // Send a 1% volume dip — invisible to the user, triggers AVRCP
             // SET_ABSOLUTE_VOLUME, which causes the phone to begin streaming
-            endpoint.AudioEndpointVolume.MasterVolumeLevelScalar = Math.Max(0f, vol - 0.01f);
+            endpoint.SetVolumeScalar(Math.Max(0f, vol - 0.01f));
             await Task.Delay(200, ct).ConfigureAwait(false);
-            endpoint.AudioEndpointVolume.MasterVolumeLevelScalar = vol;
+            endpoint.SetVolumeScalar(vol);
         }
         catch { /* best-effort — never fail the connection over this */ }
-    }
-
-    private static MMDevice? FindEndpoint(string friendlyName)
-    {
-        try
-        {
-            using var enumerator = new MMDeviceEnumerator();
-            return enumerator
-                .EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)
-                .FirstOrDefault(d => d.FriendlyName.Contains(friendlyName, StringComparison.OrdinalIgnoreCase));
-        }
-        catch { return null; }
+        finally { endpoint.Dispose(); }
     }
 }

@@ -12,13 +12,15 @@ internal static class ShortcutHelper
             var lnkPath = Path.Combine(desktop, "BlueAmp.lnk");
             if (File.Exists(lnkPath)) return;
 
-            var exePath = Environment.ProcessPath
-                ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath)) return; // can't make a shortcut without a target
 
-            var shellType = Type.GetTypeFromProgID("WScript.Shell")
-                ?? throw new InvalidOperationException("WScript.Shell not available");
+            var shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType is null) return;
+            var shellObj = Activator.CreateInstance(shellType);
+            if (shellObj is null) return;
 
-            dynamic shell    = Activator.CreateInstance(shellType);
+            dynamic shell    = shellObj;
             dynamic shortcut = shell.CreateShortcut(lnkPath);
             shortcut.TargetPath       = exePath;
             shortcut.WorkingDirectory = Path.GetDirectoryName(exePath) ?? "";

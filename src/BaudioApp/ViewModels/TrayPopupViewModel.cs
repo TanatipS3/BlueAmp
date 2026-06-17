@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using BaudioApp.Helpers;
 using BaudioApp.Models;
 using BaudioApp.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -127,6 +128,10 @@ public sealed class TrayPopupViewModel : ObservableObject
     {
         _popupVisible = visible;
         UpdateMeterState();
+
+        // The popup just closed — a good moment to hand idle heap back to the OS.
+        if (!visible)
+            MemoryHelper.TrimNow();
     }
 
     private void UpdateMeterState()

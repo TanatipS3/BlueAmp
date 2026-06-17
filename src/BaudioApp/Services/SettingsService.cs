@@ -45,7 +45,8 @@ public class SettingsService
 
         if (Current.LaunchAtStartup)
         {
-            var exePath = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath)) return;
             key.SetValue(StartupRegValue, $"\"{exePath}\"");
         }
         else

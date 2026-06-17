@@ -1,10 +1,10 @@
-using NAudio.CoreAudioApi;
+using BaudioApp.Interop;
 
 namespace BaudioApp.Services;
 
 public class AudioMeterService : IDisposable
 {
-    private MMDevice? _device;
+    private AudioEndpoint? _device;
     private System.Timers.Timer? _timer;
     private string? _deviceName;
     private bool _running;
@@ -51,28 +51,21 @@ public class AudioMeterService : IDisposable
     {
         var dev = _device;
         if (dev is null) return;
-        try { PeakChanged?.Invoke(dev.AudioMeterInformation.MasterPeakValue); }
+        try { PeakChanged?.Invoke(dev.PeakValue); }
         catch { /* device may vanish mid-tick during a disconnect */ }
     }
 
     private void AcquireDevice()
     {
-        using var enumerator = new MMDeviceEnumerator();
         _device = _deviceName is not null
-            ? FindByName(enumerator, _deviceName)
-            : enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            ? AudioDevices.FindActiveRenderByName(_deviceName)
+            : AudioDevices.GetDefaultRender();
     }
 
     private void ReleaseDevice()
     {
         _device?.Dispose();
         _device = null;
-    }
-
-    private static MMDevice? FindByName(MMDeviceEnumerator enumerator, string name)
-    {
-        var collection = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-        return collection.FirstOrDefault(d => d.FriendlyName.Contains(name, StringComparison.OrdinalIgnoreCase));
     }
 
     public void Dispose() => Stop();
