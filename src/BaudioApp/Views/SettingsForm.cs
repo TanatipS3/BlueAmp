@@ -15,7 +15,7 @@ internal sealed class SettingsForm : Form
         _onSaved = onSaved;
 
         Text            = "Settings — BlueAmp";
-        ClientSize      = new Size(460, 470);
+        ClientSize      = new Size(460, 520);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox     = false;
         MinimizeBox     = false;
@@ -72,6 +72,11 @@ internal sealed class SettingsForm : Form
 
         Controls.Add(content);
         Controls.Add(footer);
+
+        // Rows grow with their wrapped descriptions, so size the window to the
+        // content instead of a fixed height (capped so it can't outgrow the screen).
+        int wanted = content.GetPreferredSize(new Size(ClientSize.Width, 0)).Height + footer.Height;
+        ClientSize = new Size(ClientSize.Width, Math.Min(wanted, 680));
     }
 
     private static Label SectionLabel(string text) => new()
@@ -83,27 +88,39 @@ internal sealed class SettingsForm : Form
 
     private Control Row(string title, string desc, bool initial, Action<bool> setter)
     {
+        const int panelW = 400;
+        const int leftPad = 14;
+        const int descW   = 318;   // ends at x=332, leaving a clear gap before the toggle (x=346)
+        const int descY   = 30;
+
+        // Measure the wrapped description so the row grows to fit two lines instead
+        // of clipping the second line (and colliding with the toggle).
+        var descFont = Theme.F(8.5f);
+        int descH = TextRenderer.MeasureText(desc, descFont,
+            new Size(descW, 0), TextFormatFlags.WordBreak).Height;
+        int panelH = descY + descH + 10;
+
         var panel = new Panel
         {
-            Width = 400, Height = 58, BackColor = Theme.FromHex("#232323"),
+            Width = panelW, Height = panelH, BackColor = Theme.FromHex("#232323"),
             Margin = new Padding(0, 0, 0, 4)
         };
 
         panel.Controls.Add(new Label
         {
             Text = title, ForeColor = Theme.TextPrimary, Font = Theme.F(10f),
-            Location = new Point(14, 9), AutoSize = true
+            Location = new Point(leftPad, 9), AutoSize = true
         });
         panel.Controls.Add(new Label
         {
-            Text = desc, ForeColor = Theme.TextSecondary, Font = Theme.F(8.5f),
-            Location = new Point(14, 30), Size = new Size(330, 24)
+            Text = desc, ForeColor = Theme.TextSecondary, Font = descFont,
+            Location = new Point(leftPad, descY), Size = new Size(descW, descH)
         });
 
         var toggle = new ToggleSwitch
         {
             Checked = initial, BackColor = panel.BackColor,
-            Location = new Point(panel.Width - 54, 18),
+            Location = new Point(panelW - 54, (panelH - 22) / 2),
             Anchor = AnchorStyles.Right | AnchorStyles.Top
         };
         toggle.CheckedChanged += (_, _) => setter(toggle.Checked);

@@ -41,3 +41,6 @@ Desktop.ini
 
 # Logs / local
 *.log
+
+# Tooling
+.serena/
