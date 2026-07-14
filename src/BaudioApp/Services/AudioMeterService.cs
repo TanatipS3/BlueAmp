@@ -5,7 +5,7 @@ namespace BaudioApp.Services;
 public class AudioMeterService : IDisposable
 {
     private AudioEndpoint? _device;
-    private System.Timers.Timer? _timer;
+    private System.Windows.Forms.Timer? _timer;
     private string? _deviceName;
     private bool _running;
 
@@ -18,6 +18,9 @@ public class AudioMeterService : IDisposable
         _deviceName = deviceFriendlyName;
     }
 
+    /// Must be called on the UI thread. The MMDevice COM objects are apartment-
+    /// bound (no proxy/stub), so reading PeakValue from a threadpool thread throws
+    /// E_NOINTERFACE — a WinForms timer keeps every Core Audio call on this thread.
     public void Resume()
     {
         if (_running) return;
@@ -26,9 +29,8 @@ public class AudioMeterService : IDisposable
         AcquireDevice();
         if (_device is null) { _running = false; return; }
 
-        _timer = new System.Timers.Timer(100);
-        _timer.Elapsed += OnTick;
-        _timer.AutoReset = true;
+        _timer = new System.Windows.Forms.Timer { Interval = 100 };
+        _timer.Tick += OnTick;
         _timer.Start();
     }
 
@@ -47,7 +49,7 @@ public class AudioMeterService : IDisposable
         Pause();
     }
 
-    private void OnTick(object? sender, System.Timers.ElapsedEventArgs e)
+    private void OnTick(object? sender, EventArgs e)
     {
         var dev = _device;
         if (dev is null) return;
@@ -57,9 +59,12 @@ public class AudioMeterService : IDisposable
 
     private void AcquireDevice()
     {
-        _device = _deviceName is not null
-            ? AudioDevices.FindActiveRenderByName(_deviceName)
-            : AudioDevices.GetDefaultRender();
+        // In A2DP-sink mode the phone's audio is rendered through the PC's own
+        // output device — a render endpoint named after the phone usually doesn't
+        // exist. Prefer a name match (covers headphone-style endpoints), then
+        // fall back to the default render endpoint, which is what actually plays.
+        _device = (_deviceName is not null ? AudioDevices.FindActiveRenderByName(_deviceName) : null)
+                  ?? AudioDevices.GetDefaultRender();
     }
 
     private void ReleaseDevice()
