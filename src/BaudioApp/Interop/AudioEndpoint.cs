@@ -16,6 +16,13 @@ internal sealed class AudioEndpoint : IDisposable
         Pid   = 14
     };
 
+    // PKEY_AudioEngine_DeviceFormat — the shared-mode stream format (WAVEFORMATEX blob)
+    private static readonly PropertyKey PkeyDeviceFormat = new()
+    {
+        FmtId = new Guid("f19f064d-082c-4e27-bc73-6882a1bb8e4c"),
+        Pid   = 0
+    };
+
     private static Guid _meterIid  = new("C02216F6-8C67-4B5B-9D00-D008E73E0064");
     private static Guid _volumeIid = new("5CDF2C82-841E-4546-9722-0CF74078229A");
 
@@ -40,6 +47,40 @@ internal sealed class AudioEndpoint : IDisposable
             }
             finally { Marshal.ReleaseComObject(store); }
         }
+    }
+
+    /// Reads the endpoint's shared-mode audio format from the property store.
+    /// Returns the format Windows is actually rendering to this device with.
+    public bool TryGetDeviceFormat(out int sampleRateHz, out int bits, out int channels)
+    {
+        sampleRateHz = bits = channels = 0;
+        if (_device.OpenPropertyStore(StgmRead, out var store) != 0 || store is null)
+            return false;
+        try
+        {
+            var key = PkeyDeviceFormat;
+            if (store.GetValue(ref key, out var pv) != 0) return false;
+            try
+            {
+                var blob = pv.AsBlob;
+                if (blob is null || blob.Length < 16) return false;
+
+                // WAVEFORMATEX: wFormatTag@0, nChannels@2, nSamplesPerSec@4, wBitsPerSample@14
+                channels     = BitConverter.ToUInt16(blob, 2);
+                sampleRateHz = (int)BitConverter.ToUInt32(blob, 4);
+                bits         = BitConverter.ToUInt16(blob, 14);
+
+                // WAVE_FORMAT_EXTENSIBLE carries the real bit depth in wValidBitsPerSample.
+                if (BitConverter.ToUInt16(blob, 0) == 0xFFFE && blob.Length >= 20)
+                {
+                    int valid = BitConverter.ToUInt16(blob, 18);
+                    if (valid > 0) bits = valid;
+                }
+                return sampleRateHz > 0;
+            }
+            finally { Ole32.PropVariantClear(ref pv); }
+        }
+        finally { Marshal.ReleaseComObject(store); }
     }
 
     public float PeakValue

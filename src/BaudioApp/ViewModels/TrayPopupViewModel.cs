@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using BaudioApp.Helpers;
+using BaudioApp.Interop;
 using BaudioApp.Models;
 using BaudioApp.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -65,15 +66,31 @@ public sealed class TrayPopupViewModel : ObservableObject
         private set => SetProperty(ref _audioPeak, value);
     }
 
-    public string Codec   => "SBC";
-    public string Bitrate => "328 kbps";
+    private string _sampleRateText = "—";
+    private string _bitDepthText   = "—";
 
-    public int SignalBars
+    /// Real shared-mode format of the connected render endpoint (e.g. "48 kHz").
+    public string SampleRateText
+    {
+        get => _sampleRateText;
+        private set => SetProperty(ref _sampleRateText, value);
+    }
+
+    /// Real bit depth of the connected render endpoint (e.g. "16-bit").
+    public string BitDepthText
+    {
+        get => _bitDepthText;
+        private set => SetProperty(ref _bitDepthText, value);
+    }
+
+    /// Null when Windows reports no signal strength — the view shows "—"
+    /// instead of pretending the signal is full.
+    public int? SignalBars
     {
         get
         {
             var sig = ConnectedDevice?.SignalStrength;
-            if (sig is null) return 4;
+            if (sig is null) return null;
             return sig >= 75 ? 4 : sig >= 50 ? 3 : sig >= 25 ? 2 : 1;
         }
     }
@@ -128,6 +145,11 @@ public sealed class TrayPopupViewModel : ObservableObject
     {
         _popupVisible = visible;
         UpdateMeterState();
+
+        // The BT render endpoint can appear a moment after the connection opens,
+        // so re-read the real format each time the popup is shown.
+        if (visible && OverallState == DeviceConnectionState.Connected)
+            RefreshEndpointFormat();
 
         // The popup just closed — a good moment to hand idle heap back to the OS.
         if (!visible)
@@ -194,6 +216,7 @@ public sealed class TrayPopupViewModel : ObservableObject
 
                     _meter.Start(ConnectedDevice?.Name);
                     UpdateMeterState();   // resumes only if the popup is currently open
+                    RefreshEndpointFormat();
                     break;
 
                 case DeviceConnectionState.Error:
@@ -239,5 +262,26 @@ public sealed class TrayPopupViewModel : ObservableObject
     {
         for (int i = 0; i < PeakHistory.Count; i++)
             PeakHistory[i] = 0.0;
+    }
+
+    /// Reads the actual shared-mode format from the device's render endpoint.
+    /// Falls back to "—" whenever the endpoint (or the format) isn't available.
+    private void RefreshEndpointFormat()
+    {
+        string sr = "—", bd = "—";
+        if (ConnectedDevice?.Name is { } name)
+        {
+            // A2DP sink renders the phone's audio through the PC's output device,
+            // so fall back to the default render endpoint when no endpoint carries
+            // the phone's name.
+            using var endpoint = AudioDevices.FindActiveRenderByName(name) ?? AudioDevices.GetDefaultRender();
+            if (endpoint is not null && endpoint.TryGetDeviceFormat(out int hz, out int bits, out _))
+            {
+                sr = hz % 1000 == 0 ? $"{hz / 1000} kHz" : $"{hz / 1000.0:0.#} kHz";
+                bd = $"{bits}-bit";
+            }
+        }
+        SampleRateText = sr;
+        BitDepthText   = bd;
     }
 }

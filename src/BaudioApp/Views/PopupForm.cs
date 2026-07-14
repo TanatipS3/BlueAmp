@@ -12,15 +12,22 @@ namespace BaudioApp.Views;
 /// The tray popup, rendered entirely with GDI+ on one borderless form. No child
 /// controls — keeps the memory footprint tiny and gives full control over the
 /// dark, rounded look the WPF version had.
+///
+/// Fonts are point-sized and therefore scale with monitor DPI, so every layout
+/// value must scale with them — S() maps design pixels (96 DPI) to device pixels.
 internal sealed class PopupForm : Form
 {
-    private const int W        = 320;
-    private const int Pad      = 12;
-    private const int InnerW   = W - 2 * Pad;
-    private const int Radius   = 10;
-    private const int RowH     = 42;
-    private const int IconCol  = 28;
     private const int WaveSlots = 24;
+
+    private float _scale = 1f;
+
+    private int S(int v)    => (int)MathF.Round(v * _scale);
+    private int W           => S(320);
+    private int Pad         => S(12);
+    private int InnerW      => W - 2 * Pad;
+    private int Radius      => S(10);
+    private int RowH        => S(42);
+    private int IconCol     => S(28);
 
     private readonly TrayPopupViewModel _vm;
     private readonly DiagnosticService _diag;
@@ -34,6 +41,7 @@ internal sealed class PopupForm : Form
     {
         _vm = vm;
         _diag = diag;
+        _scale = DeviceDpi / 96f;
 
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar   = false;
@@ -41,7 +49,7 @@ internal sealed class PopupForm : Form
         BackColor       = Theme.PopupBg;
         DoubleBuffered  = true;
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
-        ClientSize      = new Size(W, 200);
+        ClientSize      = new Size(W, S(200));
 
         _anim = new System.Windows.Forms.Timer { Interval = 60 };
         _anim.Tick += OnAnimTick;
@@ -67,7 +75,7 @@ internal sealed class PopupForm : Form
     {
         Relayout();
         var screen = Screen.FromPoint(Cursor.Position).WorkingArea;
-        Location = new Point(screen.Right - Width - 12, screen.Bottom - Height - 12);
+        Location = new Point(screen.Right - Width - S(12), screen.Bottom - Height - S(12));
         Show();
         Activate();
     }
@@ -113,8 +121,10 @@ internal sealed class PopupForm : Form
 
     private void Relayout()
     {
+        _scale = DeviceDpi / 96f;  // popup may have moved to a monitor with different DPI
         int h = MeasureHeight();
-        if (ClientSize.Height != h) ClientSize = new Size(W, h);
+        var size = new Size(W, h);
+        if (ClientSize != size) ClientSize = size;
         Region?.Dispose();
         using var path = Theme.RoundedRect(new RectangleF(0, 0, W, h), Radius);
         Region = new Region(path);
@@ -123,18 +133,18 @@ internal sealed class PopupForm : Form
     private int MeasureHeight()
     {
         int y = Pad;
-        y += 20 + 10;          // header
-        y += 1 + 6;            // divider
+        y += S(20) + S(10);    // header
+        y += 1 + S(6);         // divider
 
-        if (_vm.Devices.Count == 0) y += 44;
+        if (_vm.Devices.Count == 0) y += S(44);
         else y += _vm.Devices.Count * RowH;
 
         if (_vm.OverallState == DeviceConnectionState.Connected)
-            y += 10 + 50 + 6 + 64;        // stats boxes + waveform
+            y += S(10) + S(50) + S(6) + S(64);   // stats boxes + waveform
         else if (_vm.OverallState == DeviceConnectionState.Error)
-            y += 10 + MeasureErrorHeight();
+            y += S(10) + MeasureErrorHeight();
 
-        y += 12 + 18;          // footer
+        y += S(12) + S(18);    // footer
         y += Pad;
         return y;
     }
@@ -142,8 +152,8 @@ internal sealed class PopupForm : Form
     private int MeasureErrorHeight()
     {
         var msg = _vm.ErrorMessage ?? "Connection failed";
-        var sz = TextRenderer.MeasureText(msg, Theme.F(9.5f), new Size(InnerW - 20, 0), TextFormatFlags.WordBreak);
-        return Math.Max(36, sz.Height + 16);
+        var sz = TextRenderer.MeasureText(msg, Theme.F(9.5f), new Size(InnerW - S(20), 0), TextFormatFlags.WordBreak);
+        return Math.Max(S(36), sz.Height + S(16));
     }
 
     // ── Paint ──────────────────────────────────────────────────────────────────
@@ -187,33 +197,38 @@ internal sealed class PopupForm : Form
         if (_vm.OverallState == DeviceConnectionState.Connecting)
             alpha = (int)(140 + 115 * Math.Abs(Math.Sin(_blinkPhase)));
         using (var b = new SolidBrush(Color.FromArgb(alpha, dotColor)))
-            g.FillEllipse(b, Pad, y + 6, 8, 8);
+            g.FillEllipse(b, Pad, y + S(6), S(8), S(8));
 
-        TextRenderer.DrawText(g, "BlueAmp", Theme.F(10.5f, FontStyle.Bold),
-            new Rectangle(Pad + 16, y, 160, 20), Theme.TextPrimary,
+        var titleFont = Theme.F(10.5f, FontStyle.Bold);
+        int titleW = TextRenderer.MeasureText("BlueAmp", titleFont).Width;
+        TextRenderer.DrawText(g, "BlueAmp", titleFont,
+            new Rectangle(Pad + S(16), y, titleW + S(4), S(20)), Theme.TextPrimary,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
 
         if (_vm.OverallState == DeviceConnectionState.Connected && _vm.ConnectedDevice is not null)
+        {
+            int nameX = Pad + S(16) + titleW + S(10);
             TextRenderer.DrawText(g, _vm.ConnectedDevice.Name, Theme.F(9f),
-                new Rectangle(Pad + 120, y, InnerW - 120, 20), Theme.TextMuted,
+                new Rectangle(nameX, y, W - Pad - nameX, S(20)), Theme.TextMuted,
                 TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
 
-        return y + 20 + 10;
+        return y + S(20) + S(10);
     }
 
     private int DrawDivider(Graphics g, int y)
     {
         using var p = new Pen(Theme.Divider);
         g.DrawLine(p, Pad, y, W - Pad, y);
-        return y + 1 + 6;
+        return y + 1 + S(6);
     }
 
     private int DrawEmpty(Graphics g, int y)
     {
         TextRenderer.DrawText(g, "No paired Bluetooth audio devices found", Theme.F(9.5f),
-            new Rectangle(Pad, y, InnerW, 44), Theme.TextFaint,
+            new Rectangle(Pad, y, InnerW, S(44)), Theme.TextFaint,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
-        return y + 44;
+        return y + S(44);
     }
 
     private int DrawDeviceRow(Graphics g, int y, BluetoothDeviceInfo d)
@@ -226,14 +241,14 @@ internal sealed class PopupForm : Form
             _                                => Theme.TextMuted
         };
 
-        DrawBluetoothGlyph(g, new Rectangle(Pad, y + (RowH - 16) / 2, IconCol, 16), stateColor);
+        DrawBluetoothGlyph(g, new Rectangle(Pad, y + (RowH - S(16)) / 2, IconCol, S(16)), stateColor);
 
-        int textX = Pad + IconCol + 8;
+        int textX = Pad + IconCol + S(8);
         int btnW = DrawRowButton(g, y, d); // returns width consumed on the right
-        int nameW = InnerW - IconCol - 8 - btnW - 8;
+        int nameW = InnerW - IconCol - S(8) - btnW - S(8);
 
         TextRenderer.DrawText(g, d.Name, Theme.F(10.5f, FontStyle.Regular),
-            new Rectangle(textX, y + 5, nameW, 18), Theme.TextPrimary,
+            new Rectangle(textX, y + S(5), nameW, S(18)), Theme.TextPrimary,
             TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
 
         (string sub, Color subColor) = d.State switch
@@ -244,7 +259,7 @@ internal sealed class PopupForm : Form
             _                                => ("Available", Theme.TextSecondary)
         };
         TextRenderer.DrawText(g, sub, Theme.F(9f),
-            new Rectangle(textX, y + 22, nameW, 15), subColor, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            new Rectangle(textX, y + S(22), nameW, S(15)), subColor, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
 
         return y + RowH;
     }
@@ -271,9 +286,9 @@ internal sealed class PopupForm : Form
                 // spinner + Cancel
                 int w = Button(g, "Cancel", cy, Color.Transparent, Theme.TextSecondary, filled: false,
                     () => _vm.CancelCommand.Execute(null));
-                int spinX = W - Pad - w - 18;
-                DrawSpinner(g, new Rectangle(spinX, cy - 7, 14, 14));
-                return w + 20;
+                int spinX = W - Pad - w - S(18);
+                DrawSpinner(g, new Rectangle(spinX, cy - S(7), S(14), S(14)));
+                return w + S(20);
         }
         return 0;
     }
@@ -282,11 +297,11 @@ internal sealed class PopupForm : Form
     {
         var font = Theme.F(9f, FontStyle.Bold);
         var sz = TextRenderer.MeasureText(text, font);
-        int w = sz.Width + 22, h = 24;
+        int w = sz.Width + S(22), h = S(24);
         int x = W - Pad - w;
         var rect = new Rectangle(x, centerY - h / 2, w, h);
-        if (filled) Theme.FillRounded(g, rect, 4, bg);
-        else Theme.DrawRoundedBorder(g, rect, 4, Theme.FromHex("#22FFFFFF"));
+        if (filled) Theme.FillRounded(g, rect, S(4), bg);
+        else Theme.DrawRoundedBorder(g, rect, S(4), Theme.FromHex("#22FFFFFF"));
         TextRenderer.DrawText(g, text, font, rect, fg,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         _hotspots.Add((rect, text, onClick));
@@ -295,7 +310,7 @@ internal sealed class PopupForm : Form
 
     private void DrawSpinner(Graphics g, Rectangle r)
     {
-        using var pen = new Pen(Theme.TextSecondary, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var pen = new Pen(Theme.TextSecondary, 1.8f * _scale) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         g.DrawArc(pen, r, _spinAngle, 280);
     }
 
@@ -305,50 +320,60 @@ internal sealed class PopupForm : Form
         float s = box.Width / 24f;
         PointF P(float px, float py) => new(box.X + px * s, box.Y + py * s);
         var pts = new[] { P(8.5f,7), P(15.5f,17), P(12,20.5f), P(12,3.5f), P(15.5f,7), P(8.5f,17) };
-        using var pen = new Pen(color, 1.8f) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var pen = new Pen(color, 1.8f * _scale) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round };
         g.DrawLines(pen, pts);
     }
 
     private int DrawStats(Graphics g, int y)
     {
-        y += 10;
-        int boxW = (InnerW - 8) / 3;
-        DrawStatBox(g, new Rectangle(Pad, y, boxW, 50), "CODEC", _vm.Codec, null);
-        DrawStatBox(g, new Rectangle(Pad + boxW + 4, y, boxW, 50), "BITRATE", _vm.Bitrate, null);
-        DrawStatBox(g, new Rectangle(Pad + 2 * (boxW + 4), y, InnerW - 2 * (boxW + 4), 50), "QUALITY", null, _vm.SignalBars);
-        y += 50 + 6;
+        y += S(10);
+        int boxW = (InnerW - S(8)) / 3;
+        int boxH = S(50);
+        DrawStatBox(g, new Rectangle(Pad, y, boxW, boxH), "SAMPLE RATE", _vm.SampleRateText, null);
+        DrawStatBox(g, new Rectangle(Pad + boxW + S(4), y, boxW, boxH), "BIT DEPTH", _vm.BitDepthText, null);
+        DrawStatBox(g, new Rectangle(Pad + 2 * (boxW + S(4)), y, InnerW - 2 * (boxW + S(4)), boxH), "QUALITY", null, _vm.SignalBars);
+        y += boxH + S(6);
 
         // Waveform box
-        var waveBox = new Rectangle(Pad, y, InnerW, 64);
-        Theme.FillRounded(g, waveBox, 6, Theme.Surface);
+        var waveBox = new Rectangle(Pad, y, InnerW, S(64));
+        Theme.FillRounded(g, waveBox, S(6), Theme.Surface);
         TextRenderer.DrawText(g, "Audio stream", Theme.F(8.5f),
-            new Rectangle(waveBox.X + 10, waveBox.Y + 8, 120, 14), Theme.TextMuted, TextFormatFlags.Left);
+            new Rectangle(waveBox.X + S(10), waveBox.Y + S(8), S(120), S(14)), Theme.TextMuted, TextFormatFlags.Left);
         bool active = _vm.ConnectedDevice?.IsAudioActive == true;
         TextRenderer.DrawText(g, active ? "Active" : "Silent", Theme.F(8.5f),
-            new Rectangle(waveBox.Right - 70, waveBox.Y + 8, 60, 14),
+            new Rectangle(waveBox.Right - S(70), waveBox.Y + S(8), S(60), S(14)),
             active ? Theme.Accent : Theme.TextFaint, TextFormatFlags.Right);
-        DrawWaveform(g, new Rectangle(waveBox.X + 10, waveBox.Y + 28, waveBox.Width - 20, 28));
-        return y + 64;
+        DrawWaveform(g, new Rectangle(waveBox.X + S(10), waveBox.Y + S(28), waveBox.Width - S(20), S(28)));
+        return y + S(64);
     }
 
     private void DrawStatBox(Graphics g, Rectangle r, string label, string? value, int? signalBars)
     {
-        Theme.FillRounded(g, r, 6, Theme.Surface);
+        Theme.FillRounded(g, r, S(6), Theme.Surface);
         TextRenderer.DrawText(g, label, Theme.F(7.5f, FontStyle.Bold),
-            new Rectangle(r.X + 10, r.Y + 7, r.Width - 12, 12), Theme.TextFaint, TextFormatFlags.Left);
+            new Rectangle(r.X + S(10), r.Y + S(7), r.Width - S(12), S(12)), Theme.TextFaint,
+            TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
         if (value is not null)
             TextRenderer.DrawText(g, value, Theme.F(12f, FontStyle.Bold),
-                new Rectangle(r.X + 10, r.Y + 20, r.Width - 12, 22), Theme.TextPrimary, TextFormatFlags.Left);
+                new Rectangle(r.X + S(10), r.Y + S(20), r.Width - S(12), S(22)), Theme.TextPrimary,
+                TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
         else if (signalBars is int bars)
         {
-            int bx = r.X + 10, by = r.Y + 40;
-            int[] heights = { 6, 10, 14, 18 };
+            int bx = r.X + S(10), by = r.Y + S(40);
+            int[] heights = { S(6), S(10), S(14), S(18) };
             for (int i = 0; i < 4; i++)
             {
                 var on = i < bars;
-                var rect = new Rectangle(bx + i * 8, by - heights[i], 5, heights[i]);
+                var rect = new Rectangle(bx + i * S(8), by - heights[i], S(5), heights[i]);
                 Theme.FillRounded(g, rect, 1, on ? Theme.Accent : Theme.BarTrack);
             }
+        }
+        else
+        {
+            // No real signal data from Windows — show a dash instead of fake bars.
+            TextRenderer.DrawText(g, "—", Theme.F(12f, FontStyle.Bold),
+                new Rectangle(r.X + S(10), r.Y + S(20), r.Width - S(12), S(22)), Theme.TextMuted,
+                TextFormatFlags.Left);
         }
     }
 
@@ -365,7 +390,7 @@ internal sealed class PopupForm : Form
         for (int i = peaks.Count - n; i < peaks.Count; i++)
         {
             double peak = peaks[i];
-            float bh = Math.Max(2f, (float)peak * area.Height);
+            float bh = Math.Max(2f * _scale, (float)peak * area.Height);
             var rect = new RectangleF(x, area.Bottom - bh, barW, bh);
             using var brush = new LinearGradientBrush(
                 new PointF(rect.X, rect.Bottom), new PointF(rect.X, rect.Top),
@@ -378,35 +403,35 @@ internal sealed class PopupForm : Form
 
     private int DrawError(Graphics g, int y)
     {
-        y += 10;
+        y += S(10);
         int h = MeasureErrorHeight();
         var rect = new Rectangle(Pad, y, InnerW, h);
-        Theme.FillRounded(g, rect, 6, Color.FromArgb(26, Theme.Error));
-        Theme.DrawRoundedBorder(g, rect, 6, Color.FromArgb(56, Theme.Error));
+        Theme.FillRounded(g, rect, S(6), Color.FromArgb(26, Theme.Error));
+        Theme.DrawRoundedBorder(g, rect, S(6), Color.FromArgb(56, Theme.Error));
         TextRenderer.DrawText(g, _vm.ErrorMessage ?? "Connection failed", Theme.F(9.5f),
-            new Rectangle(rect.X + 10, rect.Y + 8, rect.Width - 20, h - 16), Theme.Error,
+            new Rectangle(rect.X + S(10), rect.Y + S(8), rect.Width - S(20), h - S(16)), Theme.Error,
             TextFormatFlags.Left | TextFormatFlags.WordBreak);
         return y + h;
     }
 
     private void DrawFooter(Graphics g, int y)
     {
-        y += 12;
+        y += S(12);
         int sx = Pad;
         sx += FooterLink(g, "Settings", sx, y, () => _vm.OpenSettingsCommand.Execute(null));
-        TextRenderer.DrawText(g, "·", Theme.F(9f), new Rectangle(sx + 2, y, 10, 16), Theme.BarTrack, TextFormatFlags.Left);
-        sx += 12;
+        TextRenderer.DrawText(g, "·", Theme.F(9f), new Rectangle(sx + S(2), y, S(10), S(16)), Theme.BarTrack, TextFormatFlags.Left);
+        sx += S(12);
         FooterLink(g, "Diagnostics", sx, y, () => _vm.OpenDiagnosticsCommand.Execute(null));
 
         TextRenderer.DrawText(g, "BlueAmp v1", Theme.F(8f),
-            new Rectangle(W - Pad - 80, y, 80, 16), Theme.BarTrack, TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+            new Rectangle(W - Pad - S(80), y, S(80), S(16)), Theme.BarTrack, TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
     }
 
     private int FooterLink(Graphics g, string text, int x, int y, Action onClick)
     {
         var font = Theme.F(9f);
         var sz = TextRenderer.MeasureText(text, font);
-        var rect = new Rectangle(x, y, sz.Width, 16);
+        var rect = new Rectangle(x, y, sz.Width, S(16));
         TextRenderer.DrawText(g, text, font, rect, Theme.TextMuted, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         _hotspots.Add((rect, text, onClick));
         return sz.Width;

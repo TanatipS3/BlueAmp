@@ -99,19 +99,34 @@ internal interface IAudioEndpointVolume
     [PreserveSig] int GetVolumeRange(out float min, out float max, out float increment);
 }
 
-// Just enough of PROPVARIANT to read a VT_LPWSTR (the friendly-name string).
+// Just enough of PROPVARIANT to read a VT_LPWSTR (the friendly-name string)
+// and a VT_BLOB (the endpoint's WAVEFORMATEX device format).
 [StructLayout(LayoutKind.Explicit)]
 internal struct PropVariant
 {
-    [FieldOffset(0)] public ushort Vt;
-    [FieldOffset(8)] public IntPtr PointerValue;
+    [FieldOffset(0)]  public ushort Vt;
+    [FieldOffset(8)]  public IntPtr PointerValue;
+    [FieldOffset(8)]  public uint   BlobSize;
+    [FieldOffset(16)] public IntPtr BlobData;
 
     private const ushort VT_LPWSTR = 31;
+    private const ushort VT_BLOB   = 65;
 
     public readonly string? AsString =>
         Vt == VT_LPWSTR && PointerValue != IntPtr.Zero
             ? Marshal.PtrToStringUni(PointerValue)
             : null;
+
+    public readonly byte[]? AsBlob
+    {
+        get
+        {
+            if (Vt != VT_BLOB || BlobData == IntPtr.Zero || BlobSize == 0) return null;
+            var bytes = new byte[BlobSize];
+            Marshal.Copy(BlobData, bytes, 0, (int)BlobSize);
+            return bytes;
+        }
+    }
 }
 
 internal static class Ole32
