@@ -24,13 +24,15 @@ jobs:
         shell: pwsh
         run: '"version=$($env:GITHUB_REF_NAME.TrimStart(''v''))" >> $env:GITHUB_OUTPUT'
 
-      - name: Publish (self-contained single file)
+      # Framework-dependent keeps the app's low memory profile (~11-16 MB private
+      # vs ~56 MB self-contained); targets need the .NET 8 Desktop Runtime, which
+      # the installer checks for.
+      - name: Publish (framework-dependent single file)
         run: >
           dotnet publish src/BaudioApp/BaudioApp.csproj
           -c Release -r win-x64
-          --self-contained true
+          --self-contained false
           -p:PublishSingleFile=true
-          -p:EnableCompressionInSingleFile=true
           -p:Version=${{ steps.v.outputs.version }}
           -o publish
 
