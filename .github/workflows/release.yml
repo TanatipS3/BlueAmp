@@ -1,0 +1,49 @@
+name: Release
+
+# Push a tag like v1.0.0 to publish the app, build the installer,
+# and attach it to a GitHub Release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Version from tag
+        id: v
+        shell: pwsh
+        run: '"version=$($env:GITHUB_REF_NAME.TrimStart(''v''))" >> $env:GITHUB_OUTPUT'
+
+      - name: Publish (self-contained single file)
+        run: >
+          dotnet publish src/BaudioApp/BaudioApp.csproj
+          -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:EnableCompressionInSingleFile=true
+          -p:Version=${{ steps.v.outputs.version }}
+          -o publish
+
+      - name: Build installer
+        shell: pwsh
+        run: >
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          installer\BlueAmp.iss
+          /DAppVersion=${{ steps.v.outputs.version }}
+          /DPublishDir=..\publish
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/BlueAmp-Setup-*.exe
+          generate_release_notes: true
