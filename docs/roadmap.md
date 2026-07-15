@@ -83,6 +83,21 @@ Record incoming Bluetooth audio with timestamp markers and "save last 30 seconds
 
 ---
 
+## Companion: Android Earbud Handoff *(in development — `feature/earbud-handoff`)*
+
+*Reversed from the "never do" list below.* The original assumption was "Bluetooth stack is enough; no need for a paired mobile app" — and for multipoint earbuds it is: the PC releases/claims its side of the earbud link and the firmware re-routes on its own. But **single-point earbuds can only hold one connection, and only code running on the phone can tell the phone to claim or release them**. Walk-away handoff for single-point hardware is physically impossible without a companion app, so a minimal one exists.
+
+| Piece | Description |
+|---|---|
+| PC side (in main app) | `EarbudRouterService` claims/releases the earbuds' A2DP-sink service; `HandoffChannelService` hosts an RFCOMM server the phone connects to |
+| Android app (`android/`) | Foreground service keeps the RFCOMM link alive, obeys switch commands, and on PC link-loss connects the earbuds to the phone after a grace period |
+| Manual switching | PC popup buttons, Android notification actions, and an Android Quick Settings tile |
+| Automatic switching | Walk-away: each side reacts to its own link-loss (no comms needed). Return: the phone's RFCOMM reconnect *is* the "back in range" signal — no polling |
+
+The companion app stays true to the footprint principle: no Compose, no coroutines libraries, two AndroidX dependencies, one screen.
+
+---
+
 ## Technical Debt Checkpoints
 
 After each version ships, before starting the next:
@@ -100,6 +115,5 @@ These are out of scope permanently, not just deferred:
 
 - **Real-time transcription** — Whisper.NET (~100MB+) violates the lightweight constraint
 - **EQ / audio effects** — Users have dedicated tools; we're a router, not a processor
-- **Android app companion** — Bluetooth stack is enough; no need for a paired mobile app
 - **Bluetooth file transfer** — Completely different use case
 - **LDAC / aptX HD codec support** — Windows `AudioPlaybackConnection` API caps at SBC; unlocking better codecs requires bypassing the Windows Bluetooth stack entirely (a different product)

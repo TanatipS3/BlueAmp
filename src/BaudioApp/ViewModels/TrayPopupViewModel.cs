@@ -13,6 +13,7 @@ public sealed class TrayPopupViewModel : ObservableObject
     private readonly BluetoothService _bt;
     private readonly AudioConnectionService _audio;
     private readonly AudioMeterService _meter;
+    private readonly EarbudRouterService _earbuds;
 
     private BluetoothDeviceInfo? _connectedDevice;
     private BluetoothDeviceInfo? _pendingDevice;   // device being connected to (may differ from connected)
@@ -103,27 +104,67 @@ public sealed class TrayPopupViewModel : ObservableObject
     public IAsyncRelayCommand<BluetoothDeviceInfo> ConnectCommand { get; }
     public IRelayCommand CancelCommand { get; }
     public IRelayCommand DisconnectCommand { get; }
+    public IRelayCommand EarbudToggleCommand { get; }
     public IRelayCommand OpenSettingsCommand { get; }
     public IRelayCommand OpenDiagnosticsCommand { get; }
+
+    // ── Earbud handoff ────────────────────────────────────────────────────────
+
+    public bool HasEarbud => _earbuds.HasEarbud;
+    public string EarbudName => _earbuds.EarbudName ?? "Earbuds";
+    public EarbudLocation EarbudLocation => _earbuds.Location;
+
+    public string EarbudButtonLabel => EarbudLocation == EarbudLocation.OnPc ? "To phone" : "To PC";
+
+    public string EarbudStatusText => EarbudLocation switch
+    {
+        EarbudLocation.OnPc    => "Connected to this PC",
+        EarbudLocation.OnPhone => "On your phone",
+        EarbudLocation.Free    => "Idle",
+        _                      => "Not connected"
+    };
 
     public event Action? SettingsRequested;
     public event Action? DiagnosticsRequested;
     public event Action<DeviceConnectionState>? TrayIconStateChanged;
 
-    public TrayPopupViewModel(BluetoothService bt, AudioConnectionService audio, AudioMeterService meter)
+    public TrayPopupViewModel(BluetoothService bt, AudioConnectionService audio,
+                              AudioMeterService meter, EarbudRouterService earbuds)
     {
         _bt = bt;
         _audio = audio;
         _meter = meter;
+        _earbuds = earbuds;
 
         ConnectCommand         = new AsyncRelayCommand<BluetoothDeviceInfo>(ConnectAsync);
         CancelCommand          = new RelayCommand(Cancel);
         DisconnectCommand      = new RelayCommand(Disconnect);
+        EarbudToggleCommand    = new AsyncRelayCommand(ToggleEarbudAsync);
         OpenSettingsCommand    = new RelayCommand(() => SettingsRequested?.Invoke());
         OpenDiagnosticsCommand = new RelayCommand(() => DiagnosticsRequested?.Invoke());
 
-        _audio.StateChanged += OnAudioStateChanged;
-        _meter.PeakChanged  += OnPeakChanged;
+        _audio.StateChanged     += OnAudioStateChanged;
+        _meter.PeakChanged      += OnPeakChanged;
+        _earbuds.LocationChanged += OnEarbudLocationChanged;
+    }
+
+    private Task ToggleEarbudAsync() =>
+        EarbudLocation == EarbudLocation.OnPc ? _earbuds.SendToPhoneAsync() : _earbuds.BringToPcAsync();
+
+    private void OnEarbudLocationChanged(EarbudLocation location) => NotifyEarbudChanged();
+
+    /// Re-read every earbud-derived property. Called on location change and after a
+    /// Settings save (which may add, remove, or swap the configured earbud device).
+    public void NotifyEarbudChanged()
+    {
+        Ui.Post(() =>
+        {
+            OnPropertyChanged(nameof(HasEarbud));
+            OnPropertyChanged(nameof(EarbudName));
+            OnPropertyChanged(nameof(EarbudLocation));
+            OnPropertyChanged(nameof(EarbudButtonLabel));
+            OnPropertyChanged(nameof(EarbudStatusText));
+        });
     }
 
     private void OnPeakChanged(float peak)

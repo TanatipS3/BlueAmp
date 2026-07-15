@@ -17,6 +17,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly BluetoothService _bluetooth;
     private readonly AudioConnectionService _audioConn;
     private readonly AudioMeterService _audioMeter;
+    private readonly HandoffChannelService _handoffChannel;
+    private readonly EarbudRouterService _earbudRouter;
     private readonly TrayPopupViewModel _vm;
 
     private readonly NotifyIcon _tray;
@@ -49,11 +51,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _settings.ApplyStartup();
         _diag.VerboseEnabled = _settings.Current.KeepLogHistory;
 
-        _bluetooth  = new BluetoothService(_diag);
-        _audioConn  = new AudioConnectionService(_diag) { AutoReconnect = _settings.Current.AutoReconnect };
-        _audioMeter = new AudioMeterService();
+        _bluetooth    = new BluetoothService(_diag);
+        _audioConn    = new AudioConnectionService(_diag)
+        {
+            AutoReconnect = _settings.Current.AutoReconnect,
+            AutoHandoff   = _settings.Current.AutoHandoff
+        };
+        _audioMeter     = new AudioMeterService();
+        _handoffChannel = new HandoffChannelService(_diag);
+        _earbudRouter   = new EarbudRouterService(_diag, _settings, _audioConn, _handoffChannel);
 
-        _vm = new TrayPopupViewModel(_bluetooth, _audioConn, _audioMeter);
+        _vm = new TrayPopupViewModel(_bluetooth, _audioConn, _audioMeter, _earbudRouter);
         _vm.SettingsRequested    += ShowSettings;
         _vm.DiagnosticsRequested += ShowDiagnostics;
         _vm.TrayIconStateChanged += OnTrayIconStateChanged;
@@ -69,6 +77,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _bluetooth.EnumerationCompleted += OnEnumerationCompleted;
         _bluetooth.Start();
+
+        // Resolve the saved earbuds, start tracking their link, and recover the
+        // AudioSink service if a previous run was killed mid-release.
+        _ = _earbudRouter.InitializeAsync();
+
+        // Start listening for the Android companion app (no-op if Bluetooth is off).
+        _ = _handoffChannel.StartAsync();
 
         _msg.Resumed += OnSystemResumed;
 
@@ -194,7 +209,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (_settingsForm is null || _settingsForm.IsDisposed)
         {
-            _settingsForm = new SettingsForm(new SettingsViewModel(_settings), OnSettingsSaved);
+            _settingsForm = new SettingsForm(new SettingsViewModel(_settings, _earbudRouter), OnSettingsSaved);
         }
         _settingsForm.Show();
         _settingsForm.WindowState = FormWindowState.Normal;
@@ -203,8 +218,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void OnSettingsSaved()
     {
-        _diag.VerboseEnabled    = _settings.Current.KeepLogHistory;
+        _diag.VerboseEnabled     = _settings.Current.KeepLogHistory;
         _audioConn.AutoReconnect = _settings.Current.AutoReconnect;
+        _audioConn.AutoHandoff   = _settings.Current.AutoHandoff;
+
+        // The earbud selection may have changed — re-resolve it, then refresh the
+        // popup's earbud row once tracking is reattached.
+        _ = _earbudRouter.ReloadConfiguredDeviceAsync()
+            .ContinueWith(_ => Ui.Post(_vm.NotifyEarbudChanged));
     }
 
     private void ShowDiagnostics()
@@ -231,6 +252,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _bluetooth.Dispose();
         _audioConn.Dispose();
         _audioMeter.Dispose();
+        _earbudRouter.Dispose();
+        _handoffChannel.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
         _popup?.Dispose();
