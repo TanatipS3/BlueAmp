@@ -1,0 +1,4 @@
+# The Gradle wrapper script is executed by /bin/sh — it must stay LF.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
