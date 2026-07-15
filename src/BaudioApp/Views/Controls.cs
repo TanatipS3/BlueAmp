@@ -43,6 +43,36 @@ internal sealed class ToggleSwitch : Control
     }
 }
 
+/// Dark owner-drawn drop-down list. WinForms' default ComboBox can't be fully
+/// dark-themed with properties alone, so we own-draw the item area to match the
+/// rest of the settings surface.
+internal sealed class DarkComboBox : ComboBox
+{
+    public DarkComboBox()
+    {
+        DropDownStyle = ComboBoxStyle.DropDownList;
+        FlatStyle     = FlatStyle.Flat;
+        DrawMode      = DrawMode.OwnerDrawFixed;
+        BackColor     = Theme.Surface2;
+        ForeColor     = Theme.TextPrimary;
+        Font          = Theme.F(9.5f);
+        ItemHeight    = 22;
+    }
+
+    protected override void OnDrawItem(DrawItemEventArgs e)
+    {
+        if (e.Index < 0) { e.DrawBackground(); return; }
+
+        bool selected = (e.State & DrawItemState.Selected) != 0;
+        using (var bg = new SolidBrush(selected ? Theme.Surface3 : Theme.Surface2))
+            e.Graphics.FillRectangle(bg, e.Bounds);
+
+        var text = Items[e.Index]?.ToString() ?? string.Empty;
+        TextRenderer.DrawText(e.Graphics, text, Font, e.Bounds, Theme.TextPrimary,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+    }
+}
+
 /// Flat rounded dark button.
 internal sealed class DarkButton : Button
 {

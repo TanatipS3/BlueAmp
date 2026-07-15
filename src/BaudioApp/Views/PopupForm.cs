@@ -139,6 +139,8 @@ internal sealed class PopupForm : Form
         if (_vm.Devices.Count == 0) y += S(44);
         else y += _vm.Devices.Count * RowH;
 
+        if (_vm.HasEarbud) y += RowH;   // earbud handoff row
+
         if (_vm.OverallState == DeviceConnectionState.Connected)
             y += S(10) + S(50) + S(6) + S(64);   // stats boxes + waveform
         else if (_vm.OverallState == DeviceConnectionState.Error)
@@ -176,6 +178,8 @@ internal sealed class PopupForm : Form
 
         if (_vm.Devices.Count == 0) y = DrawEmpty(g, y);
         else foreach (var d in _vm.Devices.ToList()) y = DrawDeviceRow(g, y, d);
+
+        if (_vm.HasEarbud) y = DrawEarbudRow(g, y);
 
         if (_vm.OverallState == DeviceConnectionState.Connected) y = DrawStats(g, y);
         else if (_vm.OverallState == DeviceConnectionState.Error)  y = DrawError(g, y);
@@ -291,6 +295,58 @@ internal sealed class PopupForm : Form
                 return w + S(20);
         }
         return 0;
+    }
+
+    // ── Earbud handoff row ─────────────────────────────────────────────────────
+
+    private int DrawEarbudRow(Graphics g, int y)
+    {
+        var loc = _vm.EarbudLocation;
+        var stateColor = loc switch
+        {
+            EarbudLocation.OnPc    => Theme.Accent,
+            EarbudLocation.OnPhone => Theme.TextSecondary,
+            _                      => Theme.TextMuted
+        };
+
+        DrawHeadphoneGlyph(g, new Rectangle(Pad, y + (RowH - S(16)) / 2, IconCol, S(16)), stateColor);
+
+        int textX = Pad + IconCol + S(8);
+        int btnW  = DrawEarbudButton(g, y);
+        int nameW = InnerW - IconCol - S(8) - btnW - S(8);
+
+        TextRenderer.DrawText(g, _vm.EarbudName, Theme.F(10.5f, FontStyle.Regular),
+            new Rectangle(textX, y + S(5), nameW, S(18)), Theme.TextPrimary,
+            TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+
+        TextRenderer.DrawText(g, _vm.EarbudStatusText, Theme.F(9f),
+            new Rectangle(textX, y + S(22), nameW, S(15)), stateColor,
+            TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+
+        return y + RowH;
+    }
+
+    private int DrawEarbudButton(Graphics g, int rowY)
+    {
+        int cy = rowY + RowH / 2;
+        bool onPc = _vm.EarbudLocation == EarbudLocation.OnPc;
+        return Button(g, _vm.EarbudButtonLabel, cy,
+            onPc ? Theme.Surface3 : Theme.Accent,
+            onPc ? Theme.TextSecondary : Color.Black,
+            filled: true,
+            () => _vm.EarbudToggleCommand.Execute(null));
+    }
+
+    private void DrawHeadphoneGlyph(Graphics g, Rectangle box, Color color)
+    {
+        // Headband arc over two earcups, defined on a 24x24 grid.
+        float s = box.Width / 24f;
+        float X(float v) => box.X + v * s;
+        float Y(float v) => box.Y + v * s;
+        using var pen = new Pen(color, 1.8f * _scale) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        g.DrawArc(pen, X(5), Y(4), 14 * s, 14 * s, 180, 180);
+        Theme.FillRounded(g, new RectangleF(X(4), Y(11), 3.5f * s, 7 * s), 1.5f * s, color);
+        Theme.FillRounded(g, new RectangleF(X(16.5f), Y(11), 3.5f * s, 7 * s), 1.5f * s, color);
     }
 
     private int Button(Graphics g, string text, int centerY, Color bg, Color fg, bool filled, Action onClick)

@@ -8,10 +8,16 @@ public class AudioConnectionService : IDisposable
 {
     private AudioPlaybackConnection? _connection;   // the currently active (open) connection
     private CancellationTokenSource? _connectCts;
+    private CancellationTokenSource? _presenceCts;  // slow "watch for the phone to return" loop
     private readonly DiagnosticService _diag;
 
     public BluetoothDeviceInfo? ActiveDevice { get; private set; }
     public bool AutoReconnect { get; set; }
+
+    // When on, a long phone absence (walked out of range) keeps a low-frequency
+    // reconnect running so the phone re-attaches on return. Opt-in via the Automatic
+    // Handoff setting, so the default build keeps its "no persistent loops" promise.
+    public bool AutoHandoff { get; set; }
 
     public event Action<DeviceConnectionState, string?>? StateChanged;
 
@@ -60,6 +66,9 @@ public class AudioConnectionService : IDisposable
                 newConn = null;
                 ActiveDevice = device;
 
+                // A live connection means we no longer need to watch for the phone.
+                _presenceCts?.Cancel();
+
                 StateChanged?.Invoke(DeviceConnectionState.Connected, null);
                 _diag.Success($"Connected to {device.Name}", tags: ["A2DP"]);
 
@@ -103,6 +112,7 @@ public class AudioConnectionService : IDisposable
     public void Disconnect()
     {
         _connectCts?.Cancel();
+        _presenceCts?.Cancel();
         DropConn(ref _connection);
         ActiveDevice = null;
         StateChanged?.Invoke(DeviceConnectionState.Available, null);
@@ -119,6 +129,9 @@ public class AudioConnectionService : IDisposable
     // allow the Bluetooth stack time to reinitialize after sleep/wake.
     private static readonly int[] ReconnectDelaysMs = [1500, 4000, 8000, 15000];
 
+    // Slow cadence for the opt-in "watch for the phone to return" loop.
+    private const int PresenceReconnectMs = 60_000;
+
     private async void OnConnectionStateChanged(AudioPlaybackConnection sender, object args)
     {
         if (sender != _connection) return;
@@ -127,17 +140,20 @@ public class AudioConnectionService : IDisposable
 
         _diag.Warn("Audio connection dropped", tags: ["A2DP"]);
 
-        if (!AutoReconnect || ActiveDevice is null)
+        var device = ActiveDevice;
+        if (!AutoReconnect || device is null)
         {
             StateChanged?.Invoke(DeviceConnectionState.Error, "Connection dropped unexpectedly.");
             return;
         }
 
-        var device = ActiveDevice;
         for (int i = 0; i < ReconnectDelaysMs.Length; i++)
         {
             await Task.Delay(ReconnectDelaysMs[i]);
-            if (_connectCts?.IsCancellationRequested == true || ActiveDevice is null) return;
+            if (_connectCts?.IsCancellationRequested == true) return;
+            // A failed attempt clears ActiveDevice; when it does, stop the fast loop
+            // and (if handoff is on) fall through to the slow presence watch below.
+            if (ActiveDevice is null) break;
 
             _diag.Info($"Auto-reconnect attempt {i + 1}/{ReconnectDelaysMs.Length}…", tags: ["A2DP"]);
             await ConnectAsync(device);
@@ -145,6 +161,38 @@ public class AudioConnectionService : IDisposable
         }
 
         _diag.Error("Auto-reconnect failed after all attempts", null, "A2DP", "Error");
+
+        // Long absence: keep watching for the phone to come back, but only when the
+        // user opted into automatic handoff.
+        if (AutoHandoff && _connectCts?.IsCancellationRequested != true)
+            StartPresenceReconnect(device);
+    }
+
+    private void StartPresenceReconnect(BluetoothDeviceInfo device)
+    {
+        _presenceCts?.Cancel();
+        _presenceCts = new CancellationTokenSource();
+        _ = RunPresenceReconnectAsync(device, _presenceCts.Token);
+    }
+
+    private async Task RunPresenceReconnectAsync(BluetoothDeviceInfo device, CancellationToken token)
+    {
+        _diag.Info("Watching for phone to return…", tags: ["Handoff"]);
+        while (!token.IsCancellationRequested)
+        {
+            try { await Task.Delay(PresenceReconnectMs, token); }
+            catch (OperationCanceledException) { return; }
+
+            if (token.IsCancellationRequested || ActiveDevice is not null) return;
+
+            _diag.Info("Presence check — attempting to reconnect phone…", tags: ["Handoff"]);
+            await ConnectAsync(device);
+            if (ActiveDevice is not null)
+            {
+                _diag.Success("Phone returned — reconnected", tags: ["Handoff"]);
+                return;
+            }
+        }
     }
 
     private static void DropConn(ref AudioPlaybackConnection? conn)
@@ -157,6 +205,7 @@ public class AudioConnectionService : IDisposable
     public void Dispose()
     {
         _connectCts?.Cancel();
+        _presenceCts?.Cancel();
         _connection?.Dispose();
         _connection = null;
     }
