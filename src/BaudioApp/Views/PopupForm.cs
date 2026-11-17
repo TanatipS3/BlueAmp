@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using BaudioApp.Helpers;
 using BaudioApp.Models;
 using BaudioApp.Services;
 using BaudioApp.ViewModels;
@@ -95,7 +96,13 @@ internal sealed class PopupForm : Form
 
     // ── Reactive repaint ───────────────────────────────────────────────────────
 
-    private void OnVmChanged(object? s, PropertyChangedEventArgs e) => RelayoutAndRepaint();
+    private void OnVmChanged(object? s, PropertyChangedEventArgs e)
+    {
+        // The audio level changes ten times a second and never affects layout; the
+        // waveform repaints itself through PeakHistory.
+        if (e.PropertyName == nameof(TrayPopupViewModel.AudioPeak)) return;
+        RelayoutAndRepaint();
+    }
     private void OnDevicesChanged(object? s, NotifyCollectionChangedEventArgs e) => RelayoutAndRepaint();
     private void OnPeakChanged(object? s, NotifyCollectionChangedEventArgs e) { if (Visible) Invalidate(); }
 
@@ -125,10 +132,17 @@ internal sealed class PopupForm : Form
         int h = MeasureHeight();
         var size = new Size(W, h);
         if (ClientSize != size) ClientSize = size;
-        Region?.Dispose();
+
+        // Only rebuild the rounded window shape when the size actually changed.
+        if (size == _regionSize && Region is not null) return;
+        _regionSize = size;
+        var old = Region;
         using var path = Theme.RoundedRect(new RectangleF(0, 0, W, h), Radius);
         Region = new Region(path);
+        old?.Dispose();
     }
+
+    private Size _regionSize;
 
     private int MeasureHeight()
     {
@@ -138,8 +152,6 @@ internal sealed class PopupForm : Form
 
         if (_vm.Devices.Count == 0) y += S(44);
         else y += _vm.Devices.Count * RowH;
-
-        if (_vm.HasEarbud) y += RowH;   // earbud handoff row
 
         if (_vm.OverallState == DeviceConnectionState.Connected)
             y += S(10) + S(50) + S(6) + S(64);   // stats boxes + waveform
@@ -178,8 +190,6 @@ internal sealed class PopupForm : Form
 
         if (_vm.Devices.Count == 0) y = DrawEmpty(g, y);
         else foreach (var d in _vm.Devices.ToList()) y = DrawDeviceRow(g, y, d);
-
-        if (_vm.HasEarbud) y = DrawEarbudRow(g, y);
 
         if (_vm.OverallState == DeviceConnectionState.Connected) y = DrawStats(g, y);
         else if (_vm.OverallState == DeviceConnectionState.Error)  y = DrawError(g, y);
@@ -297,57 +307,6 @@ internal sealed class PopupForm : Form
         return 0;
     }
 
-    // ── Earbud handoff row ─────────────────────────────────────────────────────
-
-    private int DrawEarbudRow(Graphics g, int y)
-    {
-        var loc = _vm.EarbudLocation;
-        var stateColor = loc switch
-        {
-            EarbudLocation.OnPc    => Theme.Accent,
-            EarbudLocation.OnPhone => Theme.TextSecondary,
-            _                      => Theme.TextMuted
-        };
-
-        DrawHeadphoneGlyph(g, new Rectangle(Pad, y + (RowH - S(16)) / 2, IconCol, S(16)), stateColor);
-
-        int textX = Pad + IconCol + S(8);
-        int btnW  = DrawEarbudButton(g, y);
-        int nameW = InnerW - IconCol - S(8) - btnW - S(8);
-
-        TextRenderer.DrawText(g, _vm.EarbudName, Theme.F(10.5f, FontStyle.Regular),
-            new Rectangle(textX, y + S(5), nameW, S(18)), Theme.TextPrimary,
-            TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
-
-        TextRenderer.DrawText(g, _vm.EarbudStatusText, Theme.F(9f),
-            new Rectangle(textX, y + S(22), nameW, S(15)), stateColor,
-            TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
-
-        return y + RowH;
-    }
-
-    private int DrawEarbudButton(Graphics g, int rowY)
-    {
-        int cy = rowY + RowH / 2;
-        bool onPc = _vm.EarbudLocation == EarbudLocation.OnPc;
-        return Button(g, _vm.EarbudButtonLabel, cy,
-            onPc ? Theme.Surface3 : Theme.Accent,
-            onPc ? Theme.TextSecondary : Color.Black,
-            filled: true,
-            () => _vm.EarbudToggleCommand.Execute(null));
-    }
-
-    private void DrawHeadphoneGlyph(Graphics g, Rectangle box, Color color)
-    {
-        // Headband arc over two earcups, defined on a 24x24 grid.
-        float s = box.Width / 24f;
-        float X(float v) => box.X + v * s;
-        float Y(float v) => box.Y + v * s;
-        using var pen = new Pen(color, 1.8f * _scale) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-        g.DrawArc(pen, X(5), Y(4), 14 * s, 14 * s, 180, 180);
-        Theme.FillRounded(g, new RectangleF(X(4), Y(11), 3.5f * s, 7 * s), 1.5f * s, color);
-        Theme.FillRounded(g, new RectangleF(X(16.5f), Y(11), 3.5f * s, 7 * s), 1.5f * s, color);
-    }
 
     private int Button(Graphics g, string text, int centerY, Color bg, Color fg, bool filled, Action onClick)
     {
@@ -385,9 +344,9 @@ internal sealed class PopupForm : Form
         y += S(10);
         int boxW = (InnerW - S(8)) / 3;
         int boxH = S(50);
-        DrawStatBox(g, new Rectangle(Pad, y, boxW, boxH), "SAMPLE RATE", _vm.SampleRateText, null);
-        DrawStatBox(g, new Rectangle(Pad + boxW + S(4), y, boxW, boxH), "BIT DEPTH", _vm.BitDepthText, null);
-        DrawStatBox(g, new Rectangle(Pad + 2 * (boxW + S(4)), y, InnerW - 2 * (boxW + S(4)), boxH), "QUALITY", null, _vm.SignalBars);
+        DrawStatBox(g, new Rectangle(Pad, y, boxW, boxH), "SAMPLE RATE", _vm.SampleRateText);
+        DrawStatBox(g, new Rectangle(Pad + boxW + S(4), y, boxW, boxH), "BIT DEPTH", _vm.BitDepthText);
+        DrawStatBox(g, new Rectangle(Pad + 2 * (boxW + S(4)), y, InnerW - 2 * (boxW + S(4)), boxH), "CHANNELS", _vm.ChannelsText);
         y += boxH + S(6);
 
         // Waveform box
@@ -403,34 +362,15 @@ internal sealed class PopupForm : Form
         return y + S(64);
     }
 
-    private void DrawStatBox(Graphics g, Rectangle r, string label, string? value, int? signalBars)
+    private void DrawStatBox(Graphics g, Rectangle r, string label, string value)
     {
         Theme.FillRounded(g, r, S(6), Theme.Surface);
         TextRenderer.DrawText(g, label, Theme.F(7.5f, FontStyle.Bold),
             new Rectangle(r.X + S(10), r.Y + S(7), r.Width - S(12), S(12)), Theme.TextFaint,
             TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
-        if (value is not null)
-            TextRenderer.DrawText(g, value, Theme.F(12f, FontStyle.Bold),
-                new Rectangle(r.X + S(10), r.Y + S(20), r.Width - S(12), S(22)), Theme.TextPrimary,
-                TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
-        else if (signalBars is int bars)
-        {
-            int bx = r.X + S(10), by = r.Y + S(40);
-            int[] heights = { S(6), S(10), S(14), S(18) };
-            for (int i = 0; i < 4; i++)
-            {
-                var on = i < bars;
-                var rect = new Rectangle(bx + i * S(8), by - heights[i], S(5), heights[i]);
-                Theme.FillRounded(g, rect, 1, on ? Theme.Accent : Theme.BarTrack);
-            }
-        }
-        else
-        {
-            // No real signal data from Windows — show a dash instead of fake bars.
-            TextRenderer.DrawText(g, "—", Theme.F(12f, FontStyle.Bold),
-                new Rectangle(r.X + S(10), r.Y + S(20), r.Width - S(12), S(22)), Theme.TextMuted,
-                TextFormatFlags.Left);
-        }
+        TextRenderer.DrawText(g, value, Theme.F(12f, FontStyle.Bold),
+            new Rectangle(r.X + S(10), r.Y + S(20), r.Width - S(12), S(22)), Theme.TextPrimary,
+            TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
     }
 
     private void DrawWaveform(Graphics g, Rectangle area)
@@ -479,8 +419,9 @@ internal sealed class PopupForm : Form
         sx += S(12);
         FooterLink(g, "Diagnostics", sx, y, () => _vm.OpenDiagnosticsCommand.Execute(null));
 
-        TextRenderer.DrawText(g, "BlueAmp v1", Theme.F(8f),
-            new Rectangle(W - Pad - S(80), y, S(80), S(16)), Theme.BarTrack, TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+        // Real version and build time, so it's always clear which build is running.
+        TextRenderer.DrawText(g, AppInfo.VersionLabel, Theme.F(8f),
+            new Rectangle(W - Pad - S(150), y, S(150), S(16)), Theme.BarTrack, TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
     }
 
     private int FooterLink(Graphics g, string text, int x, int y, Action onClick)

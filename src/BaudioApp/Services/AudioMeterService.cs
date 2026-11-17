@@ -4,7 +4,9 @@ namespace BaudioApp.Services;
 
 public class AudioMeterService : IDisposable
 {
-    private AudioEndpoint? _device;
+    private AudioEndpoint? _output;        // what the PC is playing (fallback)
+    private AudioEndpoint? _phoneStream;   // the phone's own incoming stream, when exposed
+    private bool _phoneStreamProven;       // it has reported a real level at least once
     private System.Windows.Forms.Timer? _timer;
     private string? _deviceName;
     private bool _running;
@@ -26,8 +28,8 @@ public class AudioMeterService : IDisposable
         if (_running) return;
         _running = true;
 
-        AcquireDevice();
-        if (_device is null) { _running = false; return; }
+        AcquireDevices();
+        if (_output is null && _phoneStream is null) { _running = false; return; }
 
         _timer = new System.Windows.Forms.Timer { Interval = 100 };
         _timer.Tick += OnTick;
@@ -40,7 +42,7 @@ public class AudioMeterService : IDisposable
         _timer?.Stop();
         _timer?.Dispose();
         _timer = null;
-        ReleaseDevice();
+        ReleaseDevices();
     }
 
     public void Stop()
@@ -51,26 +53,41 @@ public class AudioMeterService : IDisposable
 
     private void OnTick(object? sender, EventArgs e)
     {
-        var dev = _device;
-        if (dev is null) return;
-        try { PeakChanged?.Invoke(dev.PeakValue); }
+        try
+        {
+            // Prefer the phone's own stream: it moves only for the phone's audio,
+            // whereas the PC output moves for every sound the PC makes. Windows only
+            // meters a capture endpoint while something is reading it, so trust it
+            // once it has shown a real level and use the output device until then.
+            float phone = _phoneStream?.PeakValue ?? 0f;
+            if (phone > 0.001f) _phoneStreamProven = true;
+
+            float peak = _phoneStreamProven ? phone : (_output?.PeakValue ?? 0f);
+            PeakChanged?.Invoke(peak);
+        }
         catch { /* device may vanish mid-tick during a disconnect */ }
     }
 
-    private void AcquireDevice()
+    private void AcquireDevices()
     {
+        if (_deviceName is not null)
+            _phoneStream = AudioDevices.FindPhoneStream(_deviceName);
+
         // In A2DP-sink mode the phone's audio is rendered through the PC's own
         // output device — a render endpoint named after the phone usually doesn't
         // exist. Prefer a name match (covers headphone-style endpoints), then
         // fall back to the default render endpoint, which is what actually plays.
-        _device = (_deviceName is not null ? AudioDevices.FindActiveRenderByName(_deviceName) : null)
+        _output = (_deviceName is not null ? AudioDevices.FindActiveRenderByName(_deviceName) : null)
                   ?? AudioDevices.GetDefaultRender();
     }
 
-    private void ReleaseDevice()
+    private void ReleaseDevices()
     {
-        _device?.Dispose();
-        _device = null;
+        _output?.Dispose();
+        _output = null;
+        _phoneStream?.Dispose();
+        _phoneStream = null;
+        _phoneStreamProven = false;
     }
 
     public void Dispose() => Stop();

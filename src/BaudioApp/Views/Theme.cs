@@ -27,7 +27,17 @@ internal static class Theme
 
     public static readonly string FontFamily = GetUiFont();
 
-    public static Font F(float size, FontStyle style = FontStyle.Regular) => new(FontFamily, size, style);
+    // Fonts are shared and live for the life of the app: the popup asks for a few
+    // dozen per repaint, several repaints a second, so creating one per call churned
+    // native font objects constantly. UI thread only; never dispose the result.
+    private static readonly Dictionary<(float size, FontStyle style), Font> FontCache = new();
+
+    public static Font F(float size, FontStyle style = FontStyle.Regular)
+    {
+        if (!FontCache.TryGetValue((size, style), out var font))
+            FontCache[(size, style)] = font = new Font(FontFamily, size, style);
+        return font;
+    }
 
     public static Color FromHex(string hex)
     {

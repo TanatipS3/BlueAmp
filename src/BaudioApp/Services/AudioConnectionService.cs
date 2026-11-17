@@ -4,26 +4,35 @@ using Windows.Media.Audio;
 
 namespace BaudioApp.Services;
 
+/// Owns the A2DP connection to the phone.
+///
+/// Threading: every member runs on the UI thread. Callers are UI code, awaits
+/// resume on the UI thread's synchronization context, and the one callback Windows
+/// raises on its own thread (the connection's StateChanged) is posted over before
+/// it touches anything — so no state here needs a lock.
 public class AudioConnectionService : IDisposable
 {
     private AudioPlaybackConnection? _connection;   // the currently active (open) connection
-    private CancellationTokenSource? _connectCts;
-    private CancellationTokenSource? _presenceCts;  // slow "watch for the phone to return" loop
+    private CancellationTokenSource? _connectCts;   // the connect attempt in flight
+    private CancellationTokenSource? _reconnectCts; // retry loop after an unexpected drop
     private readonly DiagnosticService _diag;
 
     public BluetoothDeviceInfo? ActiveDevice { get; private set; }
     public bool AutoReconnect { get; set; }
 
-    // When on, a long phone absence (walked out of range) keeps a low-frequency
-    // reconnect running so the phone re-attaches on return. Opt-in via the Automatic
-    // Handoff setting, so the default build keeps its "no persistent loops" promise.
-    public bool AutoHandoff { get; set; }
-
     public event Action<DeviceConnectionState, string?>? StateChanged;
 
     public AudioConnectionService(DiagnosticService diag) => _diag = diag;
 
-    public async Task ConnectAsync(BluetoothDeviceInfo device)
+    /// A connect the user (or app startup/wake) asked for. It takes over from any
+    /// background retry, so automatic reconnects can never undo a manual choice.
+    public Task ConnectAsync(BluetoothDeviceInfo device)
+    {
+        StopBackgroundRetries();
+        return ConnectCoreAsync(device);
+    }
+
+    private async Task ConnectCoreAsync(BluetoothDeviceInfo device)
     {
         _connectCts?.Cancel();
         _connectCts = new CancellationTokenSource();
@@ -49,14 +58,12 @@ public class AudioConnectionService : IDisposable
 
             var minDelay = Task.Delay(800, cts.Token);
             await newConn.StartAsync().AsTask(cts.Token);
-
-            if (cts.IsCancellationRequested) { DropConn(ref newConn); return; }
+            cts.Token.ThrowIfCancellationRequested();
 
             var openTask = newConn.OpenAsync().AsTask(cts.Token);
             await Task.WhenAll(openTask, minDelay);
             var result = await openTask;
-
-            if (cts.IsCancellationRequested) { DropConn(ref newConn); return; }
+            cts.Token.ThrowIfCancellationRequested();
 
             if (result.Status == AudioPlaybackConnectionOpenResultStatus.Success)
             {
@@ -65,9 +72,6 @@ public class AudioConnectionService : IDisposable
                 _connection = newConn;
                 newConn = null;
                 ActiveDevice = device;
-
-                // A live connection means we no longer need to watch for the phone.
-                _presenceCts?.Cancel();
 
                 StateChanged?.Invoke(DeviceConnectionState.Connected, null);
                 _diag.Success($"Connected to {device.Name}", tags: ["A2DP"]);
@@ -90,7 +94,15 @@ public class AudioConnectionService : IDisposable
                 {
                     DropConn(ref _connection);
                     ActiveDevice = null;
-                    Fail(ErrorTranslator.Translate(result.Status), $"Status: {result.Status}");
+
+                    // Windows returns a specific error next to the (often generic)
+                    // status — surface it instead of throwing it away.
+                    var extended = result.ExtendedError;
+                    int hresult = extended?.HResult ?? 0;
+                    string detail = hresult != 0
+                        ? $"Status: {result.Status} · {ErrorTranslator.FormatHResult(hresult)} · {extended!.Message}"
+                        : $"Status: {result.Status}";
+                    Fail(ErrorTranslator.Translate(result.Status, hresult), detail);
                 }
             }
         }
@@ -98,26 +110,42 @@ public class AudioConnectionService : IDisposable
         {
             DropConn(ref newConn);
             _diag.Info("Connection cancelled", tags: ["A2DP"]);
-            StateChanged?.Invoke(DeviceConnectionState.Available, null);
+
+            // A newer attempt replaced this one — it owns the state from here, so
+            // reporting anything now would only make the UI flicker.
+            if (cts != _connectCts) return;
+
+            // Cancelling a switch to another device leaves the old connection playing.
+            bool stillConnected = _connection?.State == AudioPlaybackConnectionState.Opened;
+            StateChanged?.Invoke(
+                stillConnected ? DeviceConnectionState.Connected : DeviceConnectionState.Available, null);
         }
         catch (Exception ex)
         {
             DropConn(ref newConn);
-            Fail(ErrorTranslator.Translate(AudioPlaybackConnectionOpenResultStatus.UnknownFailure), ex.Message);
+            if (cts != _connectCts) return;
+            Fail(ErrorTranslator.Translate(AudioPlaybackConnectionOpenResultStatus.UnknownFailure, ex.HResult),
+                 $"{ErrorTranslator.FormatHResult(ex.HResult)} · {ex.Message}");
         }
     }
 
-    public void Cancel() => _connectCts?.Cancel();
+    public void Cancel()
+    {
+        StopBackgroundRetries();
+        _connectCts?.Cancel();
+    }
 
     public void Disconnect()
     {
+        StopBackgroundRetries();
         _connectCts?.Cancel();
-        _presenceCts?.Cancel();
         DropConn(ref _connection);
         ActiveDevice = null;
         StateChanged?.Invoke(DeviceConnectionState.Available, null);
         _diag.Info("Disconnected", tags: ["A2DP"]);
     }
+
+    private void StopBackgroundRetries() => _reconnectCts?.Cancel();
 
     private void Fail(string message, string? detail = null)
     {
@@ -129,70 +157,73 @@ public class AudioConnectionService : IDisposable
     // allow the Bluetooth stack time to reinitialize after sleep/wake.
     private static readonly int[] ReconnectDelaysMs = [1500, 4000, 8000, 15000];
 
-    // Slow cadence for the opt-in "watch for the phone to return" loop.
-    private const int PresenceReconnectMs = 60_000;
-
-    private async void OnConnectionStateChanged(AudioPlaybackConnection sender, object args)
+    // Raised by Windows on one of its own threads — hop to the UI thread first.
+    private void OnConnectionStateChanged(AudioPlaybackConnection sender, object args)
     {
-        if (sender != _connection) return;
         if (sender.State != AudioPlaybackConnectionState.Closed) return;
-        if (_connectCts?.IsCancellationRequested == true) return;
+        Ui.Post(() => _ = HandleDroppedAsync(sender));
+    }
+
+    private async Task HandleDroppedAsync(AudioPlaybackConnection sender)
+    {
+        // Connections we closed ourselves (disconnect, switch, failed attempt) are no
+        // longer the active one by the time this runs — only a real drop gets past here.
+        if (sender != _connection) return;
 
         _diag.Warn("Audio connection dropped", tags: ["A2DP"]);
 
         var device = ActiveDevice;
+        DropConn(ref _connection);
+
         if (!AutoReconnect || device is null)
         {
+            ActiveDevice = null;
             StateChanged?.Invoke(DeviceConnectionState.Error, "Connection dropped unexpectedly.");
             return;
         }
 
-        for (int i = 0; i < ReconnectDelaysMs.Length; i++)
-        {
-            await Task.Delay(ReconnectDelaysMs[i]);
-            if (_connectCts?.IsCancellationRequested == true) return;
-            // A failed attempt clears ActiveDevice; when it does, stop the fast loop
-            // and (if handoff is on) fall through to the slow presence watch below.
-            if (ActiveDevice is null) break;
+        await RunReconnectLoopAsync(device);
+    }
 
-            _diag.Info($"Auto-reconnect attempt {i + 1}/{ReconnectDelaysMs.Length}…", tags: ["A2DP"]);
-            await ConnectAsync(device);
-            if (ActiveDevice is not null) return; // succeeded
+    /// True while the retry schedule below is running.
+    public bool IsReconnecting => _reconnectCts is { IsCancellationRequested: false };
+
+    /// Reconnect using the same patient retry schedule as a dropped connection.
+    /// Used after wake-from-sleep, when the Bluetooth stack may need several seconds
+    /// before a connect can succeed — a single attempt would often just fail.
+    public Task ReconnectAsync(BluetoothDeviceInfo device) => RunReconnectLoopAsync(device);
+
+    private async Task RunReconnectLoopAsync(BluetoothDeviceInfo device)
+    {
+        _reconnectCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _reconnectCts = cts;
+        var token = cts.Token;
+
+        // Show "reconnecting" straight away instead of a stale "Connected".
+        StateChanged?.Invoke(DeviceConnectionState.Connecting, null);
+
+        try
+        {
+            for (int i = 0; i < ReconnectDelaysMs.Length; i++)
+            {
+                await Task.Delay(ReconnectDelaysMs[i], token);
+
+                _diag.Info($"Auto-reconnect attempt {i + 1}/{ReconnectDelaysMs.Length}…", tags: ["A2DP"]);
+                await ConnectCoreAsync(device);
+
+                if (token.IsCancellationRequested) return;   // the user took over meanwhile
+                if (ActiveDevice is not null) return;        // succeeded
+            }
+        }
+        catch (OperationCanceledException) { return; }
+        finally
+        {
+            // Mark the loop finished (unless a newer loop already replaced it).
+            if (_reconnectCts == cts) _reconnectCts = null;
         }
 
         _diag.Error("Auto-reconnect failed after all attempts", null, "A2DP", "Error");
-
-        // Long absence: keep watching for the phone to come back, but only when the
-        // user opted into automatic handoff.
-        if (AutoHandoff && _connectCts?.IsCancellationRequested != true)
-            StartPresenceReconnect(device);
-    }
-
-    private void StartPresenceReconnect(BluetoothDeviceInfo device)
-    {
-        _presenceCts?.Cancel();
-        _presenceCts = new CancellationTokenSource();
-        _ = RunPresenceReconnectAsync(device, _presenceCts.Token);
-    }
-
-    private async Task RunPresenceReconnectAsync(BluetoothDeviceInfo device, CancellationToken token)
-    {
-        _diag.Info("Watching for phone to return…", tags: ["Handoff"]);
-        while (!token.IsCancellationRequested)
-        {
-            try { await Task.Delay(PresenceReconnectMs, token); }
-            catch (OperationCanceledException) { return; }
-
-            if (token.IsCancellationRequested || ActiveDevice is not null) return;
-
-            _diag.Info("Presence check — attempting to reconnect phone…", tags: ["Handoff"]);
-            await ConnectAsync(device);
-            if (ActiveDevice is not null)
-            {
-                _diag.Success("Phone returned — reconnected", tags: ["Handoff"]);
-                return;
-            }
-        }
     }
 
     private static void DropConn(ref AudioPlaybackConnection? conn)
@@ -205,7 +236,7 @@ public class AudioConnectionService : IDisposable
     public void Dispose()
     {
         _connectCts?.Cancel();
-        _presenceCts?.Cancel();
+        StopBackgroundRetries();
         _connection?.Dispose();
         _connection = null;
     }

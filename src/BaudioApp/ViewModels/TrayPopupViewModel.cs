@@ -13,7 +13,6 @@ public sealed class TrayPopupViewModel : ObservableObject
     private readonly BluetoothService _bt;
     private readonly AudioConnectionService _audio;
     private readonly AudioMeterService _meter;
-    private readonly EarbudRouterService _earbuds;
 
     private BluetoothDeviceInfo? _connectedDevice;
     private BluetoothDeviceInfo? _pendingDevice;   // device being connected to (may differ from connected)
@@ -27,26 +26,7 @@ public sealed class TrayPopupViewModel : ObservableObject
     public BluetoothDeviceInfo? ConnectedDevice
     {
         get => _connectedDevice;
-        private set
-        {
-            var previous = _connectedDevice;
-            if (SetProperty(ref _connectedDevice, value))
-            {
-                // Detach the handler from the old device so they don't accumulate
-                // across reconnects (each one would otherwise leak a closure).
-                if (previous is not null)
-                    previous.PropertyChanged -= OnConnectedDevicePropertyChanged;
-                if (value is not null)
-                    value.PropertyChanged += OnConnectedDevicePropertyChanged;
-                OnPropertyChanged(nameof(SignalBars));
-            }
-        }
-    }
-
-    private void OnConnectedDevicePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(BluetoothDeviceInfo.SignalStrength))
-            OnPropertyChanged(nameof(SignalBars));
+        private set => SetProperty(ref _connectedDevice, value);
     }
 
     public DeviceConnectionState OverallState
@@ -70,7 +50,8 @@ public sealed class TrayPopupViewModel : ObservableObject
     private string _sampleRateText = "—";
     private string _bitDepthText   = "—";
 
-    /// Real shared-mode format of the connected render endpoint (e.g. "48 kHz").
+    /// Sample rate of the phone's stream when Windows exposes it, else of the
+    /// PC output device it plays through (e.g. "48 kHz").
     public string SampleRateText
     {
         get => _sampleRateText;
@@ -84,16 +65,13 @@ public sealed class TrayPopupViewModel : ObservableObject
         private set => SetProperty(ref _bitDepthText, value);
     }
 
-    /// Null when Windows reports no signal strength — the view shows "—"
-    /// instead of pretending the signal is full.
-    public int? SignalBars
+    private string _channelsText = "—";
+
+    /// Channel layout of the stream (e.g. "Stereo").
+    public string ChannelsText
     {
-        get
-        {
-            var sig = ConnectedDevice?.SignalStrength;
-            if (sig is null) return null;
-            return sig >= 75 ? 4 : sig >= 50 ? 3 : sig >= 25 ? 2 : 1;
-        }
+        get => _channelsText;
+        private set => SetProperty(ref _channelsText, value);
     }
 
     public ObservableCollection<double> PeakHistory { get; } =
@@ -104,67 +82,27 @@ public sealed class TrayPopupViewModel : ObservableObject
     public IAsyncRelayCommand<BluetoothDeviceInfo> ConnectCommand { get; }
     public IRelayCommand CancelCommand { get; }
     public IRelayCommand DisconnectCommand { get; }
-    public IRelayCommand EarbudToggleCommand { get; }
     public IRelayCommand OpenSettingsCommand { get; }
     public IRelayCommand OpenDiagnosticsCommand { get; }
-
-    // ── Earbud handoff ────────────────────────────────────────────────────────
-
-    public bool HasEarbud => _earbuds.HasEarbud;
-    public string EarbudName => _earbuds.EarbudName ?? "Earbuds";
-    public EarbudLocation EarbudLocation => _earbuds.Location;
-
-    public string EarbudButtonLabel => EarbudLocation == EarbudLocation.OnPc ? "To phone" : "To PC";
-
-    public string EarbudStatusText => EarbudLocation switch
-    {
-        EarbudLocation.OnPc    => "Connected to this PC",
-        EarbudLocation.OnPhone => "On your phone",
-        EarbudLocation.Free    => "Idle",
-        _                      => "Not connected"
-    };
 
     public event Action? SettingsRequested;
     public event Action? DiagnosticsRequested;
     public event Action<DeviceConnectionState>? TrayIconStateChanged;
 
-    public TrayPopupViewModel(BluetoothService bt, AudioConnectionService audio,
-                              AudioMeterService meter, EarbudRouterService earbuds)
+    public TrayPopupViewModel(BluetoothService bt, AudioConnectionService audio, AudioMeterService meter)
     {
         _bt = bt;
         _audio = audio;
         _meter = meter;
-        _earbuds = earbuds;
 
         ConnectCommand         = new AsyncRelayCommand<BluetoothDeviceInfo>(ConnectAsync);
         CancelCommand          = new RelayCommand(Cancel);
         DisconnectCommand      = new RelayCommand(Disconnect);
-        EarbudToggleCommand    = new AsyncRelayCommand(ToggleEarbudAsync);
         OpenSettingsCommand    = new RelayCommand(() => SettingsRequested?.Invoke());
         OpenDiagnosticsCommand = new RelayCommand(() => DiagnosticsRequested?.Invoke());
 
-        _audio.StateChanged     += OnAudioStateChanged;
-        _meter.PeakChanged      += OnPeakChanged;
-        _earbuds.LocationChanged += OnEarbudLocationChanged;
-    }
-
-    private Task ToggleEarbudAsync() =>
-        EarbudLocation == EarbudLocation.OnPc ? _earbuds.SendToPhoneAsync() : _earbuds.BringToPcAsync();
-
-    private void OnEarbudLocationChanged(EarbudLocation location) => NotifyEarbudChanged();
-
-    /// Re-read every earbud-derived property. Called on location change and after a
-    /// Settings save (which may add, remove, or swap the configured earbud device).
-    public void NotifyEarbudChanged()
-    {
-        Ui.Post(() =>
-        {
-            OnPropertyChanged(nameof(HasEarbud));
-            OnPropertyChanged(nameof(EarbudName));
-            OnPropertyChanged(nameof(EarbudLocation));
-            OnPropertyChanged(nameof(EarbudButtonLabel));
-            OnPropertyChanged(nameof(EarbudStatusText));
-        });
+        _audio.StateChanged += OnAudioStateChanged;
+        _meter.PeakChanged  += OnPeakChanged;
     }
 
     private void OnPeakChanged(float peak)
@@ -309,20 +247,25 @@ public sealed class TrayPopupViewModel : ObservableObject
     /// Falls back to "—" whenever the endpoint (or the format) isn't available.
     private void RefreshEndpointFormat()
     {
-        string sr = "—", bd = "—";
+        string sr = "—", bd = "—", ch = "—";
         if (ConnectedDevice?.Name is { } name)
         {
-            // A2DP sink renders the phone's audio through the PC's output device,
-            // so fall back to the default render endpoint when no endpoint carries
-            // the phone's name.
-            using var endpoint = AudioDevices.FindActiveRenderByName(name) ?? AudioDevices.GetDefaultRender();
-            if (endpoint is not null && endpoint.TryGetDeviceFormat(out int hz, out int bits, out _))
+            // Best source is the phone's own incoming stream, which Windows exposes
+            // as an endpoint named after the phone — that is the format the phone is
+            // really sending. Otherwise fall back to the PC's output device, which
+            // is where the audio ends up playing.
+            using var endpoint = AudioDevices.FindPhoneStream(name)
+                                 ?? AudioDevices.FindActiveRenderByName(name)
+                                 ?? AudioDevices.GetDefaultRender();
+            if (endpoint is not null && endpoint.TryGetDeviceFormat(out int hz, out int bits, out int channels))
             {
                 sr = hz % 1000 == 0 ? $"{hz / 1000} kHz" : $"{hz / 1000.0:0.#} kHz";
                 bd = $"{bits}-bit";
+                ch = channels switch { 1 => "Mono", 2 => "Stereo", _ => $"{channels} ch" };
             }
         }
         SampleRateText = sr;
         BitDepthText   = bd;
+        ChannelsText   = ch;
     }
 }

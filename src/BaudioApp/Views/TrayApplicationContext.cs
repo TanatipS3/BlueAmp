@@ -17,8 +17,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly BluetoothService _bluetooth;
     private readonly AudioConnectionService _audioConn;
     private readonly AudioMeterService _audioMeter;
-    private readonly HandoffChannelService _handoffChannel;
-    private readonly EarbudRouterService _earbudRouter;
     private readonly TrayPopupViewModel _vm;
 
     private readonly NotifyIcon _tray;
@@ -35,13 +33,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _msg  = new MessageWindow();
         Ui.Initialize(_msg);
 
+        // Each of these also goes to crash.log on disk — the in-memory log is gone
+        // the moment the process dies, which is exactly when it's needed.
         Application.ThreadException += (_, e) =>
+        {
+            CrashLog.Write("UI thread exception", e.Exception);
             _diag.Error(e.Exception.Message, e.Exception.ToString(), "System", "Crash");
+        };
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            CrashLog.Write("Unhandled exception (fatal)", e.ExceptionObject);
             _diag.Error((e.ExceptionObject as Exception)?.Message ?? "Fatal error",
                         e.ExceptionObject?.ToString(), "System", "Crash");
+        };
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
+            CrashLog.Write("Unobserved task exception", e.Exception);
             _diag.Error(e.Exception.Message, e.Exception.ToString(), "System", "Crash");
             e.SetObserved();
         };
@@ -54,14 +61,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _bluetooth    = new BluetoothService(_diag);
         _audioConn    = new AudioConnectionService(_diag)
         {
-            AutoReconnect = _settings.Current.AutoReconnect,
-            AutoHandoff   = _settings.Current.AutoHandoff
+            AutoReconnect = _settings.Current.AutoReconnect
         };
-        _audioMeter     = new AudioMeterService();
-        _handoffChannel = new HandoffChannelService(_diag);
-        _earbudRouter   = new EarbudRouterService(_diag, _settings, _audioConn, _handoffChannel);
+        _audioMeter   = new AudioMeterService();
 
-        _vm = new TrayPopupViewModel(_bluetooth, _audioConn, _audioMeter, _earbudRouter);
+        _vm = new TrayPopupViewModel(_bluetooth, _audioConn, _audioMeter);
         _vm.SettingsRequested    += ShowSettings;
         _vm.DiagnosticsRequested += ShowDiagnostics;
         _vm.TrayIconStateChanged += OnTrayIconStateChanged;
@@ -78,16 +82,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _bluetooth.EnumerationCompleted += OnEnumerationCompleted;
         _bluetooth.Start();
 
-        // Resolve the saved earbuds, start tracking their link, and recover the
-        // AudioSink service if a previous run was killed mid-release.
-        _ = _earbudRouter.InitializeAsync();
-
-        // Start listening for the Android companion app (no-op if Bluetooth is off).
-        _ = _handoffChannel.StartAsync();
-
         _msg.Resumed += OnSystemResumed;
-
-        ShortcutHelper.EnsureDesktopShortcut();
 
         _resourceTimer = new System.Windows.Forms.Timer
         {
@@ -96,7 +91,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _resourceTimer.Tick += (_, _) => CheckResources();
         _resourceTimer.Start();
 
-        _diag.Info("BlueAmp started", tags: ["System"]);
+        _diag.Info($"BlueAmp started — {AppInfo.VersionLabel}", tags: ["System"]);
     }
 
     // ── Tray interaction ──────────────────────────────────────────────────────
@@ -154,19 +149,24 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (_settings.Current.LastDeviceId is null) return;
         if (_vm.OverallState == DeviceConnectionState.Connecting) return;
 
+        // Give Windows a moment to notice the old connection died during sleep; if it
+        // does, the dropped-connection handler is already reconnecting on its own.
         Task.Delay(4000).ContinueWith(_ => Ui.Post(() =>
         {
-            if (_vm.OverallState == DeviceConnectionState.Connected) return;
+            if (_vm.OverallState is DeviceConnectionState.Connected or DeviceConnectionState.Connecting) return;
+            if (_audioConn.IsReconnecting) return;
             var device = _bluetooth.Devices.FirstOrDefault(d => d.Id == _settings.Current.LastDeviceId);
             if (device is null) return;
             _diag.Info($"Reconnecting after wake — {device.Name}", tags: ["System"]);
-            _ = _vm.ConnectCommand.ExecuteAsync(device);
+            // Retries on a schedule: the Bluetooth stack is often not ready yet.
+            _ = _audioConn.ReconnectAsync(device);
         }));
     }
 
     private void CheckResources()
     {
-        long memMb = Process.GetCurrentProcess().WorkingSet64 / (1024 * 1024);
+        using var self = Process.GetCurrentProcess();
+        long memMb = self.WorkingSet64 / (1024 * 1024);
         if (memMb > 120)
             _diag.Warn($"Memory usage high: {memMb} MB", tags: ["System"]);
     }
@@ -209,7 +209,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (_settingsForm is null || _settingsForm.IsDisposed)
         {
-            _settingsForm = new SettingsForm(new SettingsViewModel(_settings, _earbudRouter), OnSettingsSaved);
+            _settingsForm = new SettingsForm(new SettingsViewModel(_settings), OnSettingsSaved);
         }
         _settingsForm.Show();
         _settingsForm.WindowState = FormWindowState.Normal;
@@ -220,12 +220,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _diag.VerboseEnabled     = _settings.Current.KeepLogHistory;
         _audioConn.AutoReconnect = _settings.Current.AutoReconnect;
-        _audioConn.AutoHandoff   = _settings.Current.AutoHandoff;
-
-        // The earbud selection may have changed — re-resolve it, then refresh the
-        // popup's earbud row once tracking is reattached.
-        _ = _earbudRouter.ReloadConfiguredDeviceAsync()
-            .ContinueWith(_ => Ui.Post(_vm.NotifyEarbudChanged));
     }
 
     private void ShowDiagnostics()
@@ -252,8 +246,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _bluetooth.Dispose();
         _audioConn.Dispose();
         _audioMeter.Dispose();
-        _earbudRouter.Dispose();
-        _handoffChannel.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
         _popup?.Dispose();

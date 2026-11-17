@@ -29,9 +29,22 @@ public class SettingsService
 
     public void Save()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-        var json = JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(SettingsPath, json);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+            var json = JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true });
+
+            // Write to a side file and swap it in, so a crash or power loss mid-save
+            // can never leave a half-written settings.json (which would silently reset
+            // every setting to its default).
+            var temp = SettingsPath + ".tmp";
+            File.WriteAllText(temp, json);
+            File.Move(temp, SettingsPath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Disk full / file locked — keep running with the in-memory settings.
+        }
         ApplyStartupRegistry();
     }
 

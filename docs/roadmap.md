@@ -83,18 +83,11 @@ Record incoming Bluetooth audio with timestamp markers and "save last 30 seconds
 
 ---
 
-## Companion: Android Earbud Handoff *(in development — `feature/earbud-handoff`)*
+## Dropped: Earbud Handoff and the Android companion app
 
-*Reversed from the "never do" list below.* The original assumption was "Bluetooth stack is enough; no need for a paired mobile app" — and for multipoint earbuds it is: the PC releases/claims its side of the earbud link and the firmware re-routes on its own. But **single-point earbuds can only hold one connection, and only code running on the phone can tell the phone to claim or release them**. Walk-away handoff for single-point hardware is physically impossible without a companion app, so a minimal one exists.
+Built (PC-side earbud claim/release, an RFCOMM channel, and an Android companion app) and then removed in November 2026: it went unused, and it kept a Bluetooth listener running in the background for a phone app that was no longer installed. The code remains in git history (merged in PR #1) if it is ever wanted again.
 
-| Piece | Description |
-|---|---|
-| PC side (in main app) | `EarbudRouterService` claims/releases the earbuds' A2DP-sink service; `HandoffChannelService` hosts an RFCOMM server the phone connects to |
-| Android app (`android/`) | Foreground service keeps the RFCOMM link alive, obeys switch commands, and on PC link-loss connects the earbuds to the phone after a grace period |
-| Manual switching | PC popup buttons, Android notification actions, and an Android Quick Settings tile |
-| Automatic switching | Walk-away: each side reacts to its own link-loss (no comms needed). Return: the phone's RFCOMM reconnect *is* the "back in range" signal — no polling |
-
-The companion app stays true to the footprint principle: no Compose, no coroutines libraries, two AndroidX dependencies, one screen.
+A USB audio experiment (phone audio over USB tethering) was also tried and shelved: Android requires an on-phone consent tap for every capture session, so it couldn't deliver "plug in, click Connect, done" without USB debugging.
 
 ---
 
