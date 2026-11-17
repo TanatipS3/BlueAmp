@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
@@ -13,6 +14,9 @@ internal sealed class DiagnosticsForm : Form
     private readonly Label _count;
     private readonly Dictionary<string, DarkButton> _filterButtons = new();
 
+    // One shared font for the timestamp column (was created anew for every row drawn).
+    private static readonly Font TimestampFont = new("Consolas", 8f);
+
     public DiagnosticsForm(DiagnosticViewModel vm)
     {
         _vm = vm;
@@ -26,7 +30,7 @@ internal sealed class DiagnosticsForm : Form
 
         var toolbar = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.Surface };
         int x = 12;
-        foreach (var f in new[] { "All", "Connection", "Audio", "Errors" })
+        foreach (var f in DiagnosticViewModel.Filters)
         {
             var btn = new DarkButton
             {
@@ -66,8 +70,34 @@ internal sealed class DiagnosticsForm : Form
         Controls.Add(footer);
 
         _vm.PropertyChanged += OnVmChanged;
-        _vm.Entries.CollectionChanged += (_, _) => Reload();
+        _vm.Entries.CollectionChanged += OnEntriesChanged;
         Reload();
+    }
+
+    /// The log gains one entry at a time and trims one from the front when full, so
+    /// apply just that change instead of rebuilding up to 500 rows per log line.
+    private void OnEntriesChanged(object? s, NotifyCollectionChangedEventArgs e)
+    {
+        if (IsDisposed) return;
+
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add when e.NewItems is not null:
+                foreach (DiagnosticEntry entry in e.NewItems)
+                    if (_vm.Matches(entry)) _list.Items.Add(entry);
+                if (_list.Items.Count > 0) _list.TopIndex = _list.Items.Count - 1;
+                break;
+
+            case NotifyCollectionChangedAction.Remove when e.OldItems is not null:
+                foreach (DiagnosticEntry entry in e.OldItems)
+                    _list.Items.Remove(entry);
+                break;
+
+            default:   // cleared, or anything unusual
+                Reload();
+                return;
+        }
+        _count.Text = $"{_vm.Entries.Count} events";
     }
 
     private void ApplyFilter(string filter)
@@ -107,7 +137,7 @@ internal sealed class DiagnosticsForm : Form
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using (var bg = new SolidBrush(Theme.WindowBg)) g.FillRectangle(bg, e.Bounds);
 
-        TextRenderer.DrawText(g, entry.Timestamp.ToString("HH:mm:ss"), new Font("Consolas", 8f),
+        TextRenderer.DrawText(g, entry.Timestamp.ToString("HH:mm:ss"), TimestampFont,
             new Rectangle(e.Bounds.X + 10, e.Bounds.Y + 6, 56, 14), Theme.TextFaint, TextFormatFlags.Left);
 
         var dot = entry.Level switch
@@ -132,7 +162,13 @@ internal sealed class DiagnosticsForm : Form
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _vm.PropertyChanged -= OnVmChanged;
+        if (disposing)
+        {
+            // The log lives as long as the app — detach, or every Diagnostics window
+            // ever opened would stay in memory and keep being updated.
+            _vm.PropertyChanged -= OnVmChanged;
+            _vm.Entries.CollectionChanged -= OnEntriesChanged;
+        }
         base.Dispose(disposing);
     }
 }

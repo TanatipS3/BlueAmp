@@ -15,6 +15,11 @@
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
 
+    <!-- The app formats nothing culture-specific (fixed date patterns, ordinal string
+         compares), so skip loading the ICU globalization data at startup. Also makes
+         log dates Gregorian regardless of the Windows calendar. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+
     <!-- Build/Publish Size Optimization -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
@@ -23,6 +28,11 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets the test project reach internal helpers. -->
+    <InternalsVisibleTo Include="BaudioApp.Tests" />
   </ItemGroup>
 
   <ItemGroup>

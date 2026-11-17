@@ -11,12 +11,17 @@ internal static class AudioStreamActivator
     {
         // The audio endpoint may take a moment to register after OpenAsync() completes
         AudioEndpoint? endpoint = null;
-        for (int i = 0; i < 8 && !ct.IsCancellationRequested; i++)
+        try
         {
-            await Task.Delay(400, ct).ConfigureAwait(false);
-            endpoint = AudioDevices.FindActiveRenderByName(deviceFriendlyName);
-            if (endpoint is not null) break;
+            for (int i = 0; i < 8 && !ct.IsCancellationRequested; i++)
+            {
+                await Task.Delay(400, ct).ConfigureAwait(false);
+                endpoint = AudioDevices.FindActiveRenderByName(deviceFriendlyName);
+                if (endpoint is not null) break;
+            }
         }
+        catch (OperationCanceledException) { return; }   // connection replaced or closed
+        catch { return; }                                 // audio service unavailable
 
         if (endpoint is null || ct.IsCancellationRequested) { endpoint?.Dispose(); return; }
 
@@ -31,7 +36,10 @@ internal static class AudioStreamActivator
             // Send a 1% volume dip — invisible to the user, triggers AVRCP
             // SET_ABSOLUTE_VOLUME, which causes the phone to begin streaming
             endpoint.SetVolumeScalar(Math.Max(0f, vol - 0.01f));
-            await Task.Delay(200, ct).ConfigureAwait(false);
+            // Once dipped, always restore — a cancel landing in this window used to
+            // leave the volume 1% lower every time it happened.
+            try { await Task.Delay(200, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
             endpoint.SetVolumeScalar(vol);
         }
         catch { /* best-effort — never fail the connection over this */ }

@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/BaudioApp/BaudioApp.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BaudioApp.Tests/BaudioApp.Tests.csproj" />
+  </Folder>
 </Solution>

@@ -15,7 +15,6 @@ public class BluetoothDeviceInfo : ObservableObject
     private DeviceConnectionState _state = DeviceConnectionState.Available;
     private bool _isAudioActive;
     private string? _errorMessage;
-    private int? _signalStrength;
 
     public required string Id { get; init; }
     public required string Name { get; init; }
@@ -36,12 +35,5 @@ public class BluetoothDeviceInfo : ObservableObject
     {
         get => _errorMessage;
         set => SetProperty(ref _errorMessage, value);
-    }
-
-    // Signal strength percentage 0–100 from System.Devices.Aep.SignalStrength
-    public int? SignalStrength
-    {
-        get => _signalStrength;
-        set => SetProperty(ref _signalStrength, value);
     }
 }

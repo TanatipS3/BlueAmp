@@ -168,12 +168,22 @@ internal static class AudioDevices
 
     /// Returns the first active render endpoint whose friendly name contains <paramref name="namePart"/>.
     /// All non-matching endpoints are released immediately so nothing leaks.
-    public static AudioEndpoint? FindActiveRenderByName(string namePart)
+    public static AudioEndpoint? FindActiveRenderByName(string namePart) =>
+        FindActiveByName(namePart, EDataFlow.Render);
+
+    /// While a phone is connected, Windows exposes its incoming A2DP stream as a
+    /// capture endpoint named after it ("… (Phone Name A2DP SNK)"). That endpoint
+    /// describes the phone's audio itself — unlike the PC's output device, which
+    /// carries every sound the PC makes.
+    public static AudioEndpoint? FindPhoneStream(string phoneName) =>
+        FindActiveByName(phoneName, EDataFlow.Capture);
+
+    private static AudioEndpoint? FindActiveByName(string namePart, EDataFlow flow)
     {
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
         try
         {
-            if (enumerator.EnumAudioEndpoints(EDataFlow.Render, DeviceState.Active, out var collection) != 0 || collection is null)
+            if (enumerator.EnumAudioEndpoints(flow, DeviceState.Active, out var collection) != 0 || collection is null)
                 return null;
             try
             {

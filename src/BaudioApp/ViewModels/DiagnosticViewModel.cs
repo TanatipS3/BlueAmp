@@ -8,6 +8,10 @@ namespace BaudioApp.ViewModels;
 
 public sealed class DiagnosticViewModel : ObservableObject
 {
+    /// Filter names, in toolbar order. Each one matches entries that really exist:
+    /// "Connection" = the phone's A2DP link, "System" = app and device-list events.
+    public static readonly string[] Filters = ["All", "Connection", "System", "Errors"];
+
     private readonly DiagnosticService _diag;
 
     private string _activeFilter = "All";
@@ -24,25 +28,30 @@ public sealed class DiagnosticViewModel : ObservableObject
 
     public ObservableCollection<DiagnosticEntry> Entries => _diag.Entries;
 
-    public IEnumerable<DiagnosticEntry> FilteredEntries => ActiveFilter switch
+    public IEnumerable<DiagnosticEntry> FilteredEntries => Entries.Where(Matches);
+
+    /// Whether an entry passes the active filter.
+    public bool Matches(DiagnosticEntry entry) => ActiveFilter switch
     {
-        "Connection" => Entries.Where(e => e.Tags.Contains("A2DP")),
-        "Audio"      => Entries.Where(e => e.Tags.Contains("Audio")),
-        "Errors"     => Entries.Where(e => e.Level == DiagnosticLevel.Error),
-        _            => Entries
+        "Connection" => entry.Tags.Contains("A2DP"),
+        "System"     => entry.Tags.Contains("System"),
+        "Errors"     => entry.Level == DiagnosticLevel.Error,
+        _            => true
     };
 
     public IRelayCommand ClearCommand { get; }
     public IRelayCommand CopyCommand { get; }
     public IRelayCommand<string> FilterCommand { get; }
 
+    // Note: this view-model deliberately does not subscribe to the log itself. The
+    // log outlives every Diagnostics window, so a subscription here would keep each
+    // closed window's view-model alive forever. The form listens (and unsubscribes).
     public DiagnosticViewModel(DiagnosticService diag)
     {
         _diag = diag;
         ClearCommand  = new RelayCommand(_diag.Clear);
         CopyCommand   = new RelayCommand(CopyToClipboard);
         FilterCommand = new RelayCommand<string>(f => ActiveFilter = f ?? "All");
-        Entries.CollectionChanged += (_, _) => OnPropertyChanged(nameof(FilteredEntries));
     }
 
     private void CopyToClipboard()
@@ -51,7 +60,8 @@ public sealed class DiagnosticViewModel : ObservableObject
         {
             var line = $"[{e.Timestamp:HH:mm:ss}] {e.Level,-7} {e.Message}";
             return e.Detail is { Length: > 0 } d ? line + "\n           " + d : line;
-        });
+        }).ToList();
+        if (lines.Count == 0) return;   // Clipboard.SetText throws on an empty string
         System.Windows.Forms.Clipboard.SetText(string.Join("\n", lines));
     }
 }
