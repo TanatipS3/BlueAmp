@@ -29,7 +29,7 @@ jobs:
       # the installer checks for.
       - name: Publish (framework-dependent single file)
         run: >
-          dotnet publish src/BaudioApp/BaudioApp.csproj
+          dotnet publish src/BlueAmp/BlueAmp.csproj
           -c Release -r win-x64
           --self-contained false
           -p:PublishSingleFile=true

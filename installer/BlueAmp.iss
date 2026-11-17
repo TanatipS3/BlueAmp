@@ -13,6 +13,7 @@ AppId={{7E1B7A64-4C1F-4A8E-9B0C-2D5385A9B3F1}
 AppName=BlueAmp
 AppVersion={#AppVersion}
 AppPublisher=TanatipS3
+AppCopyright=Copyright (c) 2026 TanatipS3 - MIT License
 AppPublisherURL=https://github.com/TanatipS3/BlueAmp
 DefaultDirName={autopf}\BlueAmp
 DefaultGroupName=BlueAmp
@@ -22,8 +23,10 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputBaseFilename=BlueAmp-Setup-{#AppVersion}
 OutputDir=Output
-SetupIconFile=..\src\BaudioApp\Assets\tray-idle.ico
-UninstallDisplayIcon={app}\BaudioApp.exe
+SetupIconFile=..\src\BlueAmp\Assets\tray-idle.ico
+; Shows the MIT license (with its "as-is, no warranty" terms) before installing.
+LicenseFile=..\LICENSE
+UninstallDisplayIcon={app}\BlueAmp.exe
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -39,16 +42,23 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [InstallDelete]
 ; Runtime natives shipped by older self-contained builds — no longer bundled.
 Type: files; Name: "{app}\*_cor3.dll"
+; Releases up to 1.0.x shipped the executable as BaudioApp.exe; it is BlueAmp.exe now.
+Type: files; Name: "{app}\BaudioApp.exe"
+Type: files; Name: "{app}\BaudioApp.pdb"
+Type: files; Name: "{app}\BaudioApp.exe.bak"
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; MIT requires the license and third-party copyright notices to travel with the app.
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "..\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\BlueAmp"; Filename: "{app}\BaudioApp.exe"
-Name: "{autodesktop}\BlueAmp"; Filename: "{app}\BaudioApp.exe"; Tasks: desktopicon
+Name: "{autoprograms}\BlueAmp"; Filename: "{app}\BlueAmp.exe"
+Name: "{autodesktop}\BlueAmp"; Filename: "{app}\BlueAmp.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\BaudioApp.exe"; Description: "{cm:LaunchProgram,BlueAmp}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\BlueAmp.exe"; Description: "{cm:LaunchProgram,BlueAmp}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; The app registers itself under HKCU Run when "Launch at startup" is enabled;

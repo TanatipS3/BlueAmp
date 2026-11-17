@@ -6,16 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **BlueAmp** is a Windows system-tray app that routes phone audio to a PC over Bluetooth A2DP. It has a transparent diagnostics layer that surfaces real error causes instead of generic failures.
 
-Single-project solution: `src/BaudioApp/BaudioApp.csproj` — .NET 8, WinForms, targets `net8.0-windows10.0.19041.0`. The solution file is `BlueAmp.slnx`.
+Single-project solution: `src/BlueAmp/BlueAmp.csproj` — .NET 8, WinForms, targets `net8.0-windows10.0.19041.0`. The solution file is `BlueAmp.slnx`.
 
 ## Build & run
 
 ```powershell
 # Debug build and run
-dotnet run --project src/BaudioApp/BaudioApp.csproj
+dotnet run --project src/BlueAmp/BlueAmp.csproj
 
 # Release build to ./publish (framework-dependent single file)
-dotnet publish src/BaudioApp/BaudioApp.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
+dotnet publish src/BlueAmp/BlueAmp.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
 
 # Build installer (requires Inno Setup 6 installed)
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\BlueAmp.iss /DAppVersion=1.0.0 /DPublishDir=..\publish
@@ -71,4 +71,4 @@ Stored in `%APPDATA%\BlueAmp\settings.json`. `AppSettings` fields: `LaunchAtStar
 
 ### Tests and CI
 
-`tests/BaudioApp.Tests` (xUnit) is part of `BlueAmp.slnx`; run with `dotnet test BlueAmp.slnx`. `.github/workflows/build.yml` builds and tests on every push and PR.
+`tests/BlueAmp.Tests` (xUnit) is part of `BlueAmp.slnx`; run with `dotnet test BlueAmp.slnx`. `.github/workflows/build.yml` builds and tests on every push and PR.

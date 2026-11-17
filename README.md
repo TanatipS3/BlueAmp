@@ -58,13 +58,13 @@ Requires the .NET SDK 9 or later (the solution file uses the `.slnx` format; the
 
 ```powershell
 # Run in debug
-dotnet run --project src/BaudioApp/BaudioApp.csproj
+dotnet run --project src/BlueAmp/BlueAmp.csproj
 
 # Run the tests
 dotnet test BlueAmp.slnx
 
 # Release build into ./publish
-dotnet publish src/BaudioApp/BaudioApp.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
+dotnet publish src/BlueAmp/BlueAmp.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
 
 # Build the installer (requires Inno Setup 6)
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\BlueAmp.iss /DAppVersion=1.0.0 /DPublishDir=..\publish
@@ -84,3 +84,11 @@ Pushing a tag such as `v1.1.0` makes GitHub Actions build the installer and publ
 - [Roadmap](docs/roadmap.md)
 - [Original idea](docs/ideas/blueamp.md)
 - [v1 build plan](docs/v1-plan.md)
+
+## License
+
+BlueAmp is released under the [MIT License](LICENSE). You're free to use, modify and share it, provided the copyright notice is kept. It comes **as-is, with no warranty**.
+
+BlueAmp uses [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) (MIT, © .NET Foundation and Contributors). Full notices are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
+
+"Bluetooth" is a trademark of Bluetooth SIG, Inc. BlueAmp is an independent project, not affiliated with or endorsed by Bluetooth SIG, Microsoft or any phone maker.

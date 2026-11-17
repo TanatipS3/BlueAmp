@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\tray-idle.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Shown in the exe's Properties → Details tab. -->
+    <Product>BlueAmp</Product>
+    <Company>TanatipS3</Company>
+    <Copyright>Copyright (c) 2026 TanatipS3. MIT License.</Copyright>
+    <Description>BlueAmp - Bluetooth audio receiver for Windows</Description>
+
+    <!-- Lightweight footprint: workstation, non-concurrent GC keeps a mostly-idle
+         tray app's memory low instead of reserving heap headroom for throughput. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+
+    <!-- The app formats nothing culture-specific (fixed date patterns, ordinal string
+         compares), so skip loading the ICU globalization data at startup. Also makes
+         log dates Gregorian regardless of the Windows calendar. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Build/Publish Size Optimization -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets the test project reach internal helpers. -->
+    <InternalsVisibleTo Include="BlueAmp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\tray-idle.ico"      CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="Assets\tray-connected.ico" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="Assets\tray-error.ico"     CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+</Project>

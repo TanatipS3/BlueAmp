@@ -1,8 +1,8 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/BaudioApp/BaudioApp.csproj" />
+    <Project Path="src/BlueAmp/BlueAmp.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/BaudioApp.Tests/BaudioApp.Tests.csproj" />
+    <Project Path="tests/BlueAmp.Tests/BlueAmp.Tests.csproj" />
   </Folder>
 </Solution>

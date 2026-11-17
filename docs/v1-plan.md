@@ -1,7 +1,7 @@
-# V1 Build Plan — BlueAmp
+﻿# V1 Build Plan โ€” BlueAmp
 
 ## Goal
-Ship a lightweight Windows system tray app that receives Bluetooth audio from a phone and shows users exactly what's happening — why it connected, why it didn't, whether audio is actually flowing.
+Ship a lightweight Windows system tray app that receives Bluetooth audio from a phone and shows users exactly what's happening โ€” why it connected, why it didn't, whether audio is actually flowing.
 
 ## Tech Stack
 
@@ -15,45 +15,45 @@ Ship a lightweight Windows system tray app that receives Bluetooth audio from a 
 | Audio Metering | NAudio (WASAPI loopback) | Detect if audio is actually flowing from the BT device |
 | MVVM | CommunityToolkit.Mvvm | Lightweight, source-generator based, minimal overhead |
 
-**Minimum Windows version:** Windows 10 2004 (Build 19041) — required for `AudioPlaybackConnection`.
+**Minimum Windows version:** Windows 10 2004 (Build 19041) โ€” required for `AudioPlaybackConnection`.
 
 ---
 
 ## Project Structure
 
 ```
-BaudioProject/
-├── src/
-│   └── BaudioApp/
-│       ├── BaudioApp.csproj
-│       ├── App.xaml / App.xaml.cs         # Entry point, tray lifecycle
-│       ├── Views/
-│       │   ├── TrayPopup.xaml             # Main popup panel (click tray icon)
-│       │   └── DiagnosticWindow.xaml      # Expandable log panel
-│       ├── ViewModels/
-│       │   ├── TrayPopupViewModel.cs      # Device list, connect/disconnect, status
-│       │   └── DiagnosticViewModel.cs     # Log entries, error explanations
-│       ├── Services/
-│       │   ├── BluetoothService.cs        # Device discovery, pairing state
-│       │   ├── AudioConnectionService.cs  # AudioPlaybackConnection lifecycle
-│       │   └── AudioMeterService.cs       # WASAPI loopback, stream level
-│       ├── Models/
-│       │   ├── BluetoothDeviceInfo.cs     # Device name, ID, paired state
-│       │   └── DiagnosticEntry.cs         # Log entry with timestamp + plain text
-│       └── Helpers/
-│           └── ErrorTranslator.cs         # Maps API errors → plain English
-├── docs/
-│   ├── ideas/blueamp.md
-│   ├── v1-plan.md                         # This file
-│   └── roadmap.md
-└── README.md
+BlueAmp/
+โ”โ”€โ”€ src/
+โ”   โ””โ”€โ”€ BlueAmp/
+โ”       โ”โ”€โ”€ BlueAmp.csproj
+โ”       โ”โ”€โ”€ App.xaml / App.xaml.cs         # Entry point, tray lifecycle
+โ”       โ”โ”€โ”€ Views/
+โ”       โ”   โ”โ”€โ”€ TrayPopup.xaml             # Main popup panel (click tray icon)
+โ”       โ”   โ””โ”€โ”€ DiagnosticWindow.xaml      # Expandable log panel
+โ”       โ”โ”€โ”€ ViewModels/
+โ”       โ”   โ”โ”€โ”€ TrayPopupViewModel.cs      # Device list, connect/disconnect, status
+โ”       โ”   โ””โ”€โ”€ DiagnosticViewModel.cs     # Log entries, error explanations
+โ”       โ”โ”€โ”€ Services/
+โ”       โ”   โ”โ”€โ”€ BluetoothService.cs        # Device discovery, pairing state
+โ”       โ”   โ”โ”€โ”€ AudioConnectionService.cs  # AudioPlaybackConnection lifecycle
+โ”       โ”   โ””โ”€โ”€ AudioMeterService.cs       # WASAPI loopback, stream level
+โ”       โ”โ”€โ”€ Models/
+โ”       โ”   โ”โ”€โ”€ BluetoothDeviceInfo.cs     # Device name, ID, paired state
+โ”       โ”   โ””โ”€โ”€ DiagnosticEntry.cs         # Log entry with timestamp + plain text
+โ”       โ””โ”€โ”€ Helpers/
+โ”           โ””โ”€โ”€ ErrorTranslator.cs         # Maps API errors โ’ plain English
+โ”โ”€โ”€ docs/
+โ”   โ”โ”€โ”€ ideas/blueamp.md
+โ”   โ”โ”€โ”€ v1-plan.md                         # This file
+โ”   โ””โ”€โ”€ roadmap.md
+โ””โ”€โ”€ README.md
 ```
 
 ---
 
 ## Build Tasks
 
-### Task 1 — Project Scaffolding
+### Task 1 โ€” Project Scaffolding
 **Goal:** Runnable blank WPF app that starts in the tray and exits cleanly.
 
 - [ ] Create solution + WPF project targeting `net8.0-windows10.0.19041.0`
@@ -67,7 +67,7 @@ BaudioProject/
 
 ---
 
-### Task 2 — Bluetooth Device Discovery
+### Task 2 โ€” Bluetooth Device Discovery
 **Goal:** Show a list of paired Bluetooth audio devices in the popup.
 
 - [ ] Enumerate paired devices using `DeviceInformation.FindAllAsync` with `AudioPlaybackConnection.GetDeviceSelector()`
@@ -80,15 +80,15 @@ BaudioProject/
 
 ---
 
-### Task 3 — Audio Connection (Connect / Disconnect)
-**Goal:** Click a device → audio from phone plays on PC.
+### Task 3 โ€” Audio Connection (Connect / Disconnect)
+**Goal:** Click a device โ’ audio from phone plays on PC.
 
 - [ ] Create `AudioPlaybackConnection` for selected device
 - [ ] Call `StartAsync()` and handle all result states:
-  - `Success` → mark as connected
-  - `RequestTimedOut` → translate to "Your phone took too long to respond. Make sure Bluetooth is on."
-  - `DeniedBySystem` → translate to "Windows blocked the connection. Try unpairing and re-pairing your phone."
-  - `UnknownFailure` → translate to "Something went wrong. Check the diagnostic log for details."
+  - `Success` โ’ mark as connected
+  - `RequestTimedOut` โ’ translate to "Your phone took too long to respond. Make sure Bluetooth is on."
+  - `DeniedBySystem` โ’ translate to "Windows blocked the connection. Try unpairing and re-pairing your phone."
+  - `UnknownFailure` โ’ translate to "Something went wrong. Check the diagnostic log for details."
 - [ ] `OpenAsync()` to start audio stream
 - [ ] Disconnect: dispose `AudioPlaybackConnection` cleanly
 - [ ] Handle phone disconnecting mid-session (device watcher event)
@@ -97,11 +97,11 @@ BaudioProject/
 
 ---
 
-### Task 4 — Diagnostic Log
+### Task 4 โ€” Diagnostic Log
 **Goal:** Every connection event is logged with a timestamp and plain-English explanation.
 
 - [ ] Create `DiagnosticEntry` model: timestamp, event type, raw status, human message
-- [ ] Log every state change: Connecting → Connected → Streaming → Disconnected → Error
+- [ ] Log every state change: Connecting โ’ Connected โ’ Streaming โ’ Disconnected โ’ Error
 - [ ] Map `AudioPlaybackConnectionOpenResultStatus` to human messages (via `ErrorTranslator`)
 - [ ] Show last 3 entries in the tray popup (collapsed)
 - [ ] "View full log" button opens `DiagnosticWindow` with full scrollable history
@@ -111,12 +111,12 @@ BaudioProject/
 
 ---
 
-### Task 5 — Audio Stream Meter
+### Task 5 โ€” Audio Stream Meter
 **Goal:** Visual indicator showing whether audio is actually flowing (not just "connected").
 
 - [ ] Use NAudio WASAPI loopback to capture the BT device audio endpoint
 - [ ] Sample peak level every 100ms
-- [ ] Expose as a 0–100 float to the ViewModel
+- [ ] Expose as a 0โ€“100 float to the ViewModel
 - [ ] Display as a small animated bar in the tray popup
 - [ ] Three states: Silent (grey), Low signal (green), Active (bright green)
 - [ ] Meter stops when disconnected
@@ -125,22 +125,22 @@ BaudioProject/
 
 ---
 
-### Task 6 — Tray Popup UI
+### Task 6 โ€” Tray Popup UI
 **Goal:** A clean, small popup panel that shows everything at a glance.
 
 Layout:
 ```
-┌─────────────────────────────┐
-│ BlueAmp              ●      │  ← status dot (grey/green)
-├─────────────────────────────┤
-│ Samsung Galaxy S24    [Connect] │
-│ AirPods Pro           [Connect] │
-├─────────────────────────────┤
-│ ▓▓▓▓▓░░░░░  Audio flowing  │  ← stream meter
-├─────────────────────────────┤
-│ Last event: Connected (2s ago)  │
-│ [View Diagnostic Log]       │
-└─────────────────────────────┘
+โ”โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”
+โ” BlueAmp              โ—      โ”  โ status dot (grey/green)
+โ”โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”ค
+โ” Samsung Galaxy S24    [Connect] โ”
+โ” AirPods Pro           [Connect] โ”
+โ”โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”ค
+โ” โ–“โ–“โ–“โ–“โ–“โ–‘โ–‘โ–‘โ–‘โ–‘  Audio flowing  โ”  โ stream meter
+โ”โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”ค
+โ” Last event: Connected (2s ago)  โ”
+โ” [View Diagnostic Log]       โ”
+โ””โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”
 ```
 
 - [ ] WPF popup anchored to tray icon (bottom-right of screen)
@@ -153,19 +153,19 @@ Layout:
 
 ---
 
-### Task 7 — Settings & Startup
+### Task 7 โ€” Settings & Startup
 **Goal:** Basic settings that make the app actually usable day-to-day.
 
 - [ ] "Launch at Windows startup" toggle (writes to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`)
-- [ ] "Remember last connected device" — auto-connects on app start
-- [ ] Settings stored in `%AppData%\BaudioApp\settings.json`
+- [ ] "Remember last connected device" โ€” auto-connects on app start
+- [ ] Settings stored in `%AppData%\BlueAmp\settings.json`
 - [ ] Settings accessible from tray right-click menu
 
 **Done when:** App starts with Windows, remembers the last device, auto-connects.
 
 ---
 
-### Task 8 — Polish & Validation
+### Task 8 โ€” Polish & Validation
 **Goal:** App feels solid enough to use daily without babysitting it.
 
 - [ ] Memory baseline under 50MB idle
