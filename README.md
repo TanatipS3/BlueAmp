@@ -79,12 +79,6 @@ Pushing a tag such as `v1.1.0` makes GitHub Actions build the installer and publ
 - **Audio goes one way only: phone → PC.**
 - **Windows only.**
 
-## Docs
-
-- [Roadmap](docs/roadmap.md)
-- [Original idea](docs/ideas/blueamp.md)
-- [v1 build plan](docs/v1-plan.md)
-
 ## License
 
 BlueAmp is released under the [MIT License](LICENSE). You're free to use, modify and share it, provided the copyright notice is kept. It comes **as-is, with no warranty**.

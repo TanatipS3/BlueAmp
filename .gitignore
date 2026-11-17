@@ -45,3 +45,6 @@ Desktop.ini
 # Tooling
 .serena/
 installer/Output/
+
+# Local design-tool sync settings (not useful to others)
+design-sync.config.json
