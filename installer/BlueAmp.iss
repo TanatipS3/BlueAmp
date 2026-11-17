@@ -29,6 +29,9 @@ LicenseFile=..\LICENSE
 UninstallDisplayIcon={app}\BlueAmp.exe
 Compression=lzma2/max
 SolidCompression=yes
+; Releases are built on a UTC machine; store times as UTC so installed files (and
+; the "built …" time in the popup) show the right local time.
+TimeStampsInUTC=yes
 WizardStyle=modern
 ; Matches the mutex in Program.cs — prompts to close a running BlueAmp first.
 AppMutex=BlueAmp_SingleInstance
